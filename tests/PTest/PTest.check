@@ -1,0 +1,9 @@
+/* Generating MFront behaviours */
+
+@Command "mfront --interface=castem Norton.mfront";
+@Command "mfront --obuild";
+
+/* Cast3m simulations */
+
+@Command "castem2014_PLEIADES pipe1D-increpl.dgibi";
+@Command "mtest pipe1D.ptest";

@@ -1,0 +1,338 @@
+*---------------------------------------------------------------------*
+*                Cas test de validation d'INCREPL                     *
+*---------------------------------------------------------------------*
+*   Ce cas-test resoud le probleme 1D d'un cylindre plein soumis a un *
+*   chargement de traction radiale en imposant le deplacement de sa   *
+*   surface exterieur. Ce cylindre est represente par 1 element SEG2, *
+*   donc lineaire. On affecte au materiau un comportement represente  *
+*   par le modele BLACK BURN 2, avec des caracteristiques proches de  *
+*   celles donnees pour les gaines en Zircaloy-4 des REP actuels.     *
+*   On impose egalement une temperature uniforme dans ce cylindre.    *
+*                                                                     *
+*   La solution obtenue a l'aide d'INCREPL et comparee a celle donnee *
+*   par PASAPAS qui serte de solution de reference.                   *
+*                                                                     *
+*   Rem. 1 : Le champ de temperature impose a la structure doit etre  *
+*            passe dans le chargement (idem qu'avec PASAPAS).         *
+*                                                                     *
+*---------------------------------------------------------------------*
+'OPTI' 'ECHO' 0 ;
+'OPTI' 'DIME' 1 'MODE' 'UNID' 'AXIS' 'AXGZ' 'ELEM' 'SEG2' ;
+'OPTION' 'EPSI' 'LINEAIRE' ;
+*
+* si on souhaite avoir un trace des caracteristiques materiaux
+IDES1    = FAUX ;
+* si on souhaite avoir un trace de la comparaison sol. 1D / QUA4
+ITES1    = FAUX ;
+* si on souhaite afficher les champs de temperature solt. a chaque pas
+ITRA1    = FAUX ;
+*
+*------------------------------ Maillage -----------------------------*
+*
+P0       = 'POIN' 0. ;
+P1       = 'POIN' 1. ;
+D1       = P0 'DROI' 1 P1 ;
+PTGZ1    = 'POIN' 0. ;
+*
+*------------------------ Modeles / Materiaux ------------------------*
+*
+MOD0     = 'MODE' D1 'MECANIQUE' 'ELASTIQUE' 
+                     'FLUAGE' 'BLACKBURN_2' 'DPGE' PTGZ1 ;
+*
+* module d'Young de la gaine: YMG1 (option SEEDRE 82/919)
+LTK1X    = 'PROG' 273. PAS 50. 873 2573. ;
+LYMG1    = 'PROG' 9.81E10 9.63E10 9.33E10 9.05E10 8.76E10 8.47E10
+                  8.18E10 7.89E10 7.60E10 7.31E10 7.02E10 6.82E10
+                  6.51E10 6.51E10 ;
+YMG1     = 'EVOL' 'MANU' 'T' LTK1X 'YOUN' LYMG1 ;
+*
+* coefficient de Poisson de la gaine: NUG1
+NUG1     = 0.34 ;
+*
+* dilatation thermique de la gaine: ALPHG1 (Loi METEOR/TU)
+ALPHG1   = 6.72E-6 ;
+*
+* loi de fluage de la gaine: Loi de type BLACKBURN_2
+LTK1     = 'PROG' 553. PAS 10. 623. ;
+L1       = 'PROG' ('DIME' LTK1) * 1. ;
+LTKM1    = L1 / LTK1 ;
+DER3     = 2. / (3. ** 0.5) ;
+AF1G     = 0. ;
+AF2G     = 0. ;
+LAF3G    = (1.E-6 ** 1.26) * 1.28 * ('EXP' ((-7400.) * LTKM1)) ;
+LAF3G    = DER3 * LAF3G ;
+AF3G     = 'EVOL' 'MANU' 'T' LTK1 'AF3' LAF3G ;
+AF4G     = 1.26 ;
+RF1G     = 0. ;
+RF2G     = 0. ;
+RF3G     = 2.78E-6 ;
+RF4G     = 0. ;
+BF1G     = 0. ;
+BF2G     = 0. ;
+BF3G     = 0. ;
+* flux rapide sur la gaine (1.E14 n.cm-2.s-1): FLUXR1
+FLUXR1   = 1. ;
+LBF4G    = (1.E-6 ** 1.4) * 1.24E-9 * (FLUXR1 ** 0.85)
+         * ('EXP' ((-4500.) * LTKM1)) ;
+LBF4G    = DER3 * LBF4G ;
+BF4G     = 'EVOL' 'MANU' 'T' LTK1 'BF4' LBF4G ;
+BF5G     = 1.4 ;
+SMAXG1   = 180.E6 ;
+*
+'SI' IDES1 ;
+  'TITR' 'Evolution du module d"Young en fonction de la temperature' ;
+  'DESS' YMG1 ;
+'FINS' ;
+*
+MAT0     = 'MATE' MOD0 'YOUN' YMG1 'NU' NUG1 'ALPH' ALPHG1
+                       'AF1' AF1G 'AF2' AF2G 'AF3' AF3G 'AF4' AF4G
+                       'RF1' RF1G 'RF2' RF2G 'RF3' RF3G 'RF4' RF4G
+                       'BF1' BF1G 'BF2' BF2G 'BF3' BF3G 'BF4' BF4G
+                       'BF5' BF5G 'SMAX' SMAXG1 ;
+*
+*------------------------- C.L. / Chargement -------------------------*
+*
+CLP0     = 'BLOQ' 'DEPL' P0 ;
+CLP1     = 'BLOQ' 'UR' P1 ;
+CL0      = CLP0 'ET' CLP1 ;
+*
+DCLP1    = 'DEPI' CLP1 0.02 ;
+*
+LTPS1    = 'PROG' 0. 1.E5 ;
+EVC1     = 'EVOL' 'MANU' 'TEMP' LTPS1 ('PROG' ('DIME' LTPS1) * 1.) ;
+CHAR0    = 'CHAR' 'DIMP' DCLP1 EVC1 ;
+*
+CHPT1    = 'MANU' 'CHPO' D1 'T   ' 573. ;
+CHART0   = 'CHAR' 'T' CHPT1 EVC1 ;
+*
+*---------------------------------------------------------------------*
+*
+*
+*
+*---------------------------------------------------------------------*
+*                                                                     *
+*                       Resolution avec INCREPL                       *
+*                                                                     *
+*---------------------------------------------------------------------*
+*
+*----------------- Construction de la table INCREPL ------------------*
+*
+'OPTI' 'ECHO' 0 ;
+*
+TAB1                             = 'TABL' ;
+TAB1 . 'MODELE'                  = MOD0 ;
+TAB1 . 'MATERIAUX'               = MAT0 ;
+TAB1 . 'BLOCAGES_MECANIQUES'     = CL0 ;
+TAB1 . 'CHARGEMENT'              = CHAR0 'ET' CHART0 ;
+TAB1 . 'TALPHA_REFERENCE'        = 293. ;
+TAB1 . 'T_INI'                   = CHPT1 ;
+TAB1 . 'T_FIN'                   = CHPT1 ;
+TAB1 . 'PTREF_PLANGENE'          = PTGZ1 ;
+TAB1 . 'MESSAGES'                = VRAI ;
+*
+*---------------------------- Resolution -----------------------------*
+*
+NB1      = 'DIME' LTPS1 ;
+NB1      = 1 ;
+TAB1 . 'TEMPS_INI' = 0. ;
+I1       = 1 ;
+'REPE' BOU1 NB1 ;
+  TAB1 . 'TEMPS_FIN' = 'EXTR' LTPS1 (I1 + 1) ;
+  TAB1       = INCREPL TAB1 ;
+  I1 = I1 + 1 ;
+'FIN' BOU1 ;
+*
+*-------------------------- Depouillement ----------------------------*
+*
+CHPU1    = TAB1. 'U_INI' ;
+EPSP1    = TAB1. 'EPSIN_INI' ;
+EPS1     = 'EPSI' MOD0 CHPU1 ;
+SIG1     = TAB1. 'SIGMA_INI' ;
+VINT1    = TAB1. 'VARINT_INI' ;
+*
+'SI' ITRA1 ;
+  'TITR' 'Champ de deplacement Ur (m) obtenu avec INCREPL' ;
+  'TRAC' ('EXCO' 'UR' CHPU1) D1 ;
+  'TITR' 'Champ de deformations obtenu avec INCREPL' ;
+  'TRAC' EPS1 MOD0 ;
+  'TITR' 'Champ de deformations inelastiques obtenu avec INCREPL' ;
+  'TRAC' EPSP1 MOD0 ;
+  'TITR' 'Champ de contraintes (MPa) obtenu avec INCREPL' ;
+  'TRAC' (1.E-6 * SIG1) MOD0 ;
+'FINS' ;
+*
+*---------------------------------------------------------------------*
+*
+*
+*
+*
+*
+*
+*---------------------------------------------------------------------*
+*                                                                     *
+*                       Resolution avec PASAPAS                       *
+*                                                                     *
+*---------------------------------------------------------------------*
+*
+*----------------- Construction de la table PASAPAS ------------------*
+*
+'OPTI' 'ECHO' 0 ;
+*
+TAB2                            = 'TABL' ;
+TAB2. 'MODELE'                  = MOD0 ;
+TAB2. 'CARACTERISTIQUES'        = MAT0 ;
+TAB2. 'BLOCAGES_MECANIQUES'     = CL0 ;
+TAB2. 'CHARGEMENT'              = CHAR0 'ET' CHART0 ;
+TAB2. 'TEMPS_CALCULES'          = LTPS1 ;
+TAB2. 'CONVERGENCE_FORCEE'      = FAUX ;
+TAB2. 'TEMPERATURES'            = 'TABL' ;
+(TAB2. 'TEMPERATURES'). 0       = CHPT1 ;
+TAB2. 'TALPHA_REFERENCE'        = 293. ;
+*                                                                     *
+TAB2 . 'MES_SAUVEGARDES'        = 'TABL' ;
+TAB2 . 'MES_SAUVEGARDES' . 'DEFIN' = VRAI ;
+*
+*---------------------------- Resolution -----------------------------*
+*
+PASAPAS TAB2 ;
+*
+*-------------------------- Depouillement ----------------------------*
+*
+CHPU2    = (TAB2. 'DEPLACEMENTS'). 1 ;
+EPSP2    = (TAB2. 'DEFORMATIONS_INELASTIQUES'). 1 ;
+EPS2     = 'EPSI' MOD0 CHPU1 ;
+SIG2     = (TAB2. 'CONTRAINTES'). 1 ;
+VINT2    = (TAB2. 'VARIABLES_INTERNES'). 1 ;
+*
+'SI' ITRA1 ;
+  'TITR' 'Champ de deplacement Ur (m) obtenu avec PASAPAS' ;
+  'TRAC' ('EXCO' 'UR' CHPU2) D1 ;
+  'TITR' 'Champ de deformations obtenu avec PASAPAS' ;
+  'TRAC' EPS2 MOD0 ;
+  'TITR' 'Champ de deformations inelastiques obtenu avec PASAPAS' ;
+  'TRAC' EPSP2 MOD0 ;
+  'TITR' 'Champ de contraintes (MPa) obtenu avec PASAPAS' ;
+  'TRAC' (1.E-6 * SIG2) MOD0 ;
+'FINS' ;
+*
+*---------------------------------------------------------------------*
+*
+*
+*
+*
+*
+*
+*---------------------------------------------------------------------*
+*                                                                     *
+*                      Comparaison des 2 solutions                    *
+*                                                                     *
+*---------------------------------------------------------------------*
+*
+* construction des evolutions des 2 sol.
+*
+UR1      = CHPU1 'EXCO' 'UR' ;
+UR2      = CHPU2 'EXCO' 'UR' ;
+EVUR1    = 'EVOL' 'ROUG' 'CHPO' CHPU1 'UR  ' D1 ;
+EVUR2    = 'EVOL' 'VERT' 'CHPO' CHPU2 'UR  ' D1 ;
+*
+CHPOEI1  = 'CHAN' 'CHPO' MOD0 EPSP1 ;
+CHPOEI2  = 'CHAN' 'CHPO' MOD0 EPSP2 ;
+EVEIRR1  = 'EVOL' 'ROUG' 'CHPO' CHPOEI1 'EIRR' D1 ;
+EVEIRR2  = 'EVOL' 'VERT' 'CHPO' CHPOEI2 'EIRR' D1 ;
+EVEITT1  = 'EVOL' 'ROUG' 'CHPO' CHPOEI1 'EITT' D1 ;
+EVEITT2  = 'EVOL' 'VERT' 'CHPO' CHPOEI2 'EITT' D1 ;
+EVEIZZ1  = 'EVOL' 'ROUG' 'CHPO' CHPOEI1 'EIZZ' D1 ;
+EVEIZZ2  = 'EVOL' 'VERT' 'CHPO' CHPOEI2 'EIZZ' D1 ;
+*
+CHPOSG1  = 'CHAN' 'CHPO' MOD0 SIG1 ;
+CHPOSG2  = 'CHAN' 'CHPO' MOD0 SIG2 ;
+EVSGRR1  = 'EVOL' 'ROUG' 'CHPO' CHPOSG1 'SMRR' D1 ;
+EVSGRR2  = 'EVOL' 'VERT' 'CHPO' CHPOSG2 'SMRR' D1 ;
+EVSGTT1  = 'EVOL' 'ROUG' 'CHPO' CHPOSG1 'SMTT' D1 ;
+EVSGTT2  = 'EVOL' 'VERT' 'CHPO' CHPOSG2 'SMTT' D1 ;
+EVSGZZ1  = 'EVOL' 'ROUG' 'CHPO' CHPOSG1 'SMZZ' D1 ;
+EVSGZZ2  = 'EVOL' 'VERT' 'CHPO' CHPOSG2 'SMZZ' D1 ;
+*
+CHPVI1   = 'CHAN' 'CHPO' MOD0 VINT1 ;
+CHPVI2   = 'CHAN' 'CHPO' MOD0 VINT2 ;
+EVEPSE1  = 'EVOL' 'ROUG' 'CHPO' CHPVI1 'EPSE' D1 ;
+EVEPSE2  = 'EVOL' 'VERT' 'CHPO' CHPVI2 'EPSE' D1 ;
+EVEPSH1  = 'EVOL' 'ROUG' 'CHPO' CHPVI1 'EPSH' D1 ;
+EVEPSH2  = 'EVOL' 'VERT' 'CHPO' CHPVI2 'EPSH' D1 ;
+EVECRR1  = 'EVOL' 'ROUG' 'CHPO' CHPVI1 'ECRR' D1 ;
+EVECRR2  = 'EVOL' 'VERT' 'CHPO' CHPVI2 'ECRR' D1 ;
+EVECTT1  = 'EVOL' 'ROUG' 'CHPO' CHPVI1 'ECTT' D1 ;
+EVECTT2  = 'EVOL' 'VERT' 'CHPO' CHPVI2 'ECTT' D1 ;
+EVECZZ1  = 'EVOL' 'ROUG' 'CHPO' CHPVI1 'ECZZ' D1 ;
+EVECZZ2  = 'EVOL' 'VERT' 'CHPO' CHPVI2 'ECZZ' D1 ;
+*
+'SI' ITES1 ;
+  TDES1    = 'TABL' ;
+  TDES1. 1 = 'TIRC' ;
+  TDES1. 2 = 'TIRL' ;
+  'DESS' (EVUR1 'ET' EVUR2) TDES1 
+  'TITR' 'Deplacement radial : INCREPL (rouge) PASAPAS (vert)' ;
+  'DESS' (EVEIRR1 'ET' EVEIRR2) TDES1 
+  'TITR' 'Deformation inelastique EIRR : INCREPL (rouge) PASAPAS
+(vert)' ;
+  'DESS' (EVEITT1 'ET' EVEITT2) TDES1
+  'TITR' 'Deformation inelastique EITT : INCREPL (rouge) PASAPAS
+(vert)' ;
+  'DESS' (EVEIZZ1 'ET' EVEIZZ2) TDES1
+  'TITR' 'Deformation inelastique EIZZ : INCREPL (rouge) PASAPAS
+(vert)' ;
+  'DESS' (EVSGRR1 'ET' EVSGRR2) TDES1 
+  'TITR' 'Contrainte SMRR : INCREPL (rouge) PASAPAS (vert)' ;
+  'DESS' (EVSGTT1 'ET' EVSGTT2) TDES1 
+  'TITR' 'Contrainte SMTT : INCREPL (rouge) PASAPAS (vert)' ;
+  'DESS' (EVSGZZ1 'ET' EVSGZZ2) TDES1 
+  'TITR' 'Contrainte SMZZ : INCREPL (rouge) PASAPAS (vert)' ;
+  'DESS' (EVEPSE1 'ET' EVEPSE2) TDES1
+  'TITR' 'Variable interne EPSE : INCREPL (rouge) PASAPAS (vert)' ;
+  'DESS' (EVEPSH1 'ET' EVEPSH2) TDES1
+  'TITR' 'Variable interne EPSH : INCREPL (rouge) PASAPAS (vert)' ;
+  'DESS' (EVECRR1 'ET' EVECRR2) TDES1
+  'TITR' 'Variable interne ECRR : INCREPL (rouge) PASAPAS (vert)' ;
+  'DESS' (EVECTT1 'ET' EVECTT2) TDES1
+  'TITR' 'Variable interne ECTT : INCREPL (rouge) PASAPAS (vert)' ;
+  'DESS' (EVECZZ1 'ET' EVECZZ2) TDES1
+  'TITR' 'Variable interne ECZZ : INCREPL (rouge) PASAPAS (vert)' ;
+'FINS' ;
+*
+* calcul de l'erreur max.: ERR1
+*
+LUR1     = 'EXTR' EVUR1 'ORDO' ;
+LUR2     = 'EXTR' EVUR2 'ORDO' ;
+UMAX1    = 'MAXI' ('ABS' (LUR2)) ;
+ERR1     = ('MAXI' ('ABS' (LUR1 - LUR2))) / UMAX1 ;
+*
+*--------------------- Test sur l'erreur relative --------------------*
+*
+ERRMAX1 = 1.E-5 ;
+'SI' (ERR1 > ERRMAX1) ;
+  'SAUT' 1 'LIGN' ;
+  'MESS' '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!' ;
+  'MESS' '                                                          ' ;
+  'MESS' '              -----------------------------               ' ;
+  'MESS' '              ATTENTION : CAS TEST ECHOUE !               ' ;
+  'MESS' '              -----------------------------               ' ;
+  'MESS' '                                                          ' ;
+  'MESS' '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!' ;
+  'MESS' '                                                          ' ;
+  'MESS' '> Ecart relatif entre 1D et 2D superieur a :' ERRMAX1       ;
+  'SAUT' 1 'LIGN' ;
+  'ERRE' 5 ;
+'SINO' ;
+  'SAUT' 1 'LIGN' ;
+  'MESS' '              -----------------------------               ' ;
+  'MESS' '                     CAS TEST REUSSI                      ' ;
+  'MESS' '              -----------------------------               ' ;
+  'SAUT' 1 'LIGN' ;
+'FINS' ;
+*
+*---------------------------------------------------------------------*
+*
+'FIN' ;
+'OPTI' 'ECHO' 1 ;
+*
+*---------------------------------------------------------------------*

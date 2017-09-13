@@ -1,0 +1,10 @@
+/* Generating MFront behaviours */
+
+@Command "mfront --interface=castem Elasticity.mfront";
+@Command "mfront --interface=castem Tvergaard.mfront";
+@Command "mfront --obuild";
+
+/* Saint-Venant Kirchhoff elasticity */
+
+@Command "castem2014_PLEIADES czm.dgibi";
+@Command "castem2014_PLEIADES czm2.dgibi";

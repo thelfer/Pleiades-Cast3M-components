@@ -1,0 +1,208 @@
+* fichier :  implicitnorton.dgibi
+*=======================================================================
+*
+* CAS TEST DE VALIDATION DE LA PROCEDURE INCREPL
+* POUR UN ESSAI DE TRACTION UNIAXIALE A VITESSE DE DEFORMATION IMPOSEE
+* SUR UNE LOI DE NORTON
+*
+*=======================================================================
+
+opti echo 0 ;
+
+*=======================================================================
+*
+*                       PROCEDURES DEPENDANTES
+*
+*=======================================================================
+
+
+DEBPROC EVO2FICH EV1*EVOLUTION FICOUT*MOT;
+  PROG1=EXTR EV1 ABSC;
+  PROG2=EXTR EV1 ORDO;
+  NB=DIME PROG1;
+  I=0;
+  ii=vale impr;
+  OPTI IMPR 10 IMPR FICOUT;
+  REPETER BOU1 NB;
+    I=I+1;
+    X1=EXTR PROG1 I;
+    Y1=EXTR PROG2 I;
+    MESSAGE X1 Y1 ;
+    FIN BOU1;
+  OPTI IMPR II;
+FINPROC;
+
+*=======================================================================
+*
+*                      JEU DE DONNEES PRINCIPAL
+*
+*=======================================================================
+
+*-----------------------------------------------------------------------
+* 0 - Maillage
+*     PLAQUE CARREE    COTE : 1 m    EPAISSEUR : 1 cm
+
+'OPTION'  'DIMENSION'  3 'ELEM' CUB8 'MODELISER' TRIDIM ;
+
+*-----------------------------------------------------------------------
+* Maillage
+*-----------------------------------------------------------------------
+
+lx= 1.0 ;
+ly= 1.0 ;
+lz= 1.0 ;
+nx = 1;
+ny = 1;
+nz = 1;
+
+pO  = 0. 0. 0.;
+l1 = 'DROIT' pO (lx 0. 0.) nx ;
+l3 = l1 'PLUS' (0. ly 0.);
+
+s1 = 'TRANSLATION' l1 (0. ly 0.) ny ;
+v1 = s1 'VOLUME' nz 'TRANSLATION'(0. 0. lz) ;
+l2 = s1 'FACE' 4;
+l4 = l2 'PLUS' (lx 0. 0.);
+s2 = v1 'FACE' 2;
+
+s4 = 'TRANSLATION' l1 (0. 0. lz) nz ;
+s5 = 'TRANSLATION' l2 (0. 0. lz) nz ;
+s6 = 'TRANSLATION' l3 (0. 0. lz) nz ;
+s7 = 'TRANSLATION' l4 (0. 0. lz) nz ;
+
+sy1 = s4;
+sy2 = s6;
+sx1 = s5;
+sx2 = s7;
+sz1 = s1;
+sz2 = s2;
+
+'ELIM' (v1 'ET'  sx1 'ET' sx2 'ET' sy1 'ET' sy2 'ET' sz1 'ET' sz2 'ET'  pO
+            l1 'ET'  l2 'ET'  l3 'ET'  l4) 1.e-10; 
+
+*-----------------------------------------------------------------------
+* Comportement loi de norton
+*-----------------------------------------------------------------------
+
+* 1 Definition du modele
+
+coel    = 'MOTS' 'YOUN' 'NU' 'RHO' 'ALPH';
+statev  = 'MOTS' 'EEXX' 'EEYY' 'EEZZ' 'EEXY' 'EEXZ' 'EEYZ' 'P';
+params  = 'MOTS' 'T';
+mo_meca = 'MODELISER' v1 'MECANIQUE' 'ELASTIQUE'
+                    'NON_LINEAIRE' 'UTILISATEUR'
+                    'EPSILON' LINEAIRE
+                    'LIB_LOI' './src/libUmatBehaviour.so'
+                   'FCT_LOI' 'umatimplicitnorton'
+                   'C_MATERIAU' coel 'C_VARINTER' statev
+                   'PARA_LOI'  params 'CONS' M;
+
+* 2 Affectation des constantes de materiau
+
+ma_meca = 'MATERIAU' mo_meca 'YOUN' 150.e9 'NU' 0.333
+                    'RHO' 0. 'ALPH' 0.;
+
+* 3 Definition des conditions aux limites et chargements
+
+* 1.4.0 Creation de progressions pour la ponderation des chargements,
+*       definissant autant d'etats a calculer
+
+tmax    = 2500.;
+NPAS    = 20.;
+L_temps = PROG 0.0 'PAS' (tmax/NPAS)  tmax;
+L_t     = PROG 0.0 tmax;
+L_d     = PROG 0.0 1.0;
+
+* 1.4.1 Blocages mecaniques et deplacement axial impose
+
+uz3 =  2.5e-2;
+clim1 = (BLOQ sz1 'UZ' ) et (BLOQ sx1 'UX') et ('BLOQUE' sy1 'UY') ;
+clim2 = BLOQ pO 'DEPL';
+clim3 = BLOQ sz2 'UZ' ;
+depi3 = DEPI clim3 uz3 ;
+charmeca = CHAR 'DIMP' ('EVOL' 'MANUEL' L_t L_d) depi3 ;
+
+* 1.5 Resolution par INCREPL
+
+TABU                  = TABLE ;
+TABU . 'TEMPS'        = 'TABL' ;
+TABU . 'DEPLACEMENTS' = 'TABL' ;
+TABU . 'DEFORMATIONS' = 'TABL' ;
+TABU . 'CONTRAINTES'  = 'TABL' ;
+*                                                                     *
+*
+*
+TAB1                         = 'TABL' ;
+TAB1 . 'GRANDS_DEPLACEMENTS' = FAUX ;
+TAB1 . 'MODELE'              = mo_meca ;
+TAB1 . 'MATERIAUX'           = ma_meca ;
+TAB1 . 'BLOCAGES_MECANIQUES' = clim1 ET clim2 ET clim3 ;
+TAB1 . 'CHARGEMENT'          = charmeca ;
+TAB1 . 'TEMPS_INI'           = 'EXTR' L_temps 1 ;
+TAB1 . 'K_TANGENT'           = 'KTAC';
+TAB1 . 'INCREPL_VERSION'     = 4;
+TABU . 'TEMPS' . 0           = TAB1 . 'TEMPS_INI' ;
+TAB1 . '__FNONL__' = FAUX;
+TAB1 . 'MESSAGES'            = VRAI ;
+U0       = 'ZERO' mo_meca 'DEPLACEM' ;
+U0       = 'CHAN' 'CHPO' mo_meca U0 ;
+U0       = 'CHAN' 'ATTRIBUT' U0 'NATURE' 'DIFFUS' ;
+TABU . 'DEPLACEMENTS' . 0 = U0 ;
+TABU . 'DEFORMATIONS' . 0 = 'ZERO' mo_meca 'DEFORMAT' ;
+TABU . 'CONTRAINTES'  . 0 = 'ZERO' mo_meca 'CONTRAIN' ;
+p = 0;
+te  = 'EXTR' L_temps ('DIME' L_temps);
+'REPE' B1 (('DIME' L_temps) '-' 1);
+   t   = 'EXTR' L_temps &B1;
+   tdt = 'EXTR' L_temps (&B1 '+' 1);
+   dt = tdt '-' t;
+  'MESSAGE' 'TEMPS: ' t ' ' dt;
+  TAB1. 'TEMPS_INI'   = t;
+  'SI' ('>' (t+dt) te);
+    TAB1 . 'TEMPS_FIN' = te ;
+  'SINO' ;
+    TAB1 . 'TEMPS_FIN' = t+dt ;
+  'FINSI';
+  STAB1    = INCREPL TAB1 ;
+  bconv = FAUX;
+  'SI' ('EXISTE' stab1 'CONV_MECA');
+    bconv = stab1.'CONV_MECA';
+  'FINSI' ;
+  'SI' ('EXISTE'  stab1 '_ERREUR_');
+       bCONV = bCONV 'ET' ('EGA' (STAB1. '_ERREUR_') 0);
+  'FINSI' ;
+  'SI' bCONV ;
+    p = p+1;
+    'SI' ('EXISTE' STAB1 'DU_FIN') ;
+      U      = STAB1 . 'DU_FIN' ;
+    'SINO' ;
+      U      = U + (STAB1 . 'DU_FIN') ;
+    'FINS' ;
+    TAB1 . 'TEMPS_INI'  = TPS ;
+    TAB1 . 'U_INI'      = U ;
+    TAB1 . 'SIGMA_INI'  = STAB1 . 'SIGMA_FIN' ;
+    TABU . 'TEMPS' . p        = t+dt ;
+    TABU . 'DEPLACEMENTS' . p = U ;
+    TABU . 'DEFORMATIONS' . p = 'EPSI' mo_meca U ;
+    TABU . 'CONTRAINTES'    . p  = STAB1 . 'SIGMA_FIN' ;
+    t = t+dt;
+    'SI'('>' t te);
+      t = te;
+    'FINSI' ;
+  'SINON';
+    'ERREUR'  'NON CONVERGENCE';  
+  'FINSI' ;
+'FIN' B1 ;
+
+pt = 'PROG';
+ps = 'PROG';
+'REPETER' i ('DIMENSION' (tabu. 'CONTRAINTES' ));
+  t  = tabu. 'TEMPS'. (&i-1);
+  pt = pt 'ET' ('PROG' tabu. 'TEMPS'. (&i-1));
+  s  = tabu. 'CONTRAINTES'. (&i - 1);
+  ps = ps 'ET' ('MAXIMUM' ('EXCO' s 'SMZZ'));
+'FIN'  i;
+
+EVO2FICH ('EVOL' 'MANUEL' pt ps) 'implicitnorton-ktac-castem.res';
+
+'FIN' ;

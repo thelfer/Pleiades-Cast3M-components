@@ -1,0 +1,13 @@
+/* Generating MFront behaviours */
+
+@Command "mfront --interface=castem LogarithmicStrainPlasticity.mfront";
+@Command "mfront --obuild";
+
+/* Saint-Venant Kirchhoff elasticity */
+
+@Command "mtest LogarithmicStrainPlasticityUniaxialTesting.mtest";
+@Command "castem2014_PLEIADES LogarithmicStrainPlasticityUniaxialTesting.dgibi";
+
+@Precision 1.e5;
+@Test {{"LogarithmicStrainPlasticityUniaxialTesting.res":8},
+       {"LogarithmicStrainPlasticityUniaxialTesting-castem.res":2}};

@@ -1,0 +1,235 @@
+* Serge PASCAL                                         le 9 juin 2005 *
+*---------------------------------------------------------------------*
+*                Cas test de validation d'INCREPL                     *
+*---------------------------------------------------------------------*
+*    Ce cas-test permet de tester la gestion du contact par INCREPL.  *
+* Il simule la mise en contact a deplacement impose d'un carre        *
+* deformable sur une surface deformable. Le probleme est traite en    *
+* contraintes planes. Le deplacement est impose au cote superieur de  *
+* carre. Sa base se deforme au contact de la surface sous-jacente.    *
+* La solution obtenue avec INCREPL est comparee a celle de PASAPAS.   *
+*---------------------------------------------------------------------*
+*                                                                     *
+'OPTI' ECHO 1 ;
+*                                                                     *
+'OPTI' 'DIME' 2 'ELEM' QUA4 'MODE' 'PLAN' 'CONT' ;
+'OPTION' 'EPSI' 'LINEAIRE' ;
+*                                                                     *
+* Si TRACes desires, mettre IG1 a VRAI :                              *
+IG1      = FAUX ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                              MAILLAGE                               *
+*---------------------------------------------------------------------*
+*                                                                     *
+S1       = -10. 0. ;
+S2       = 10. 0. ;
+NLS1     = 17 ;
+LS1      = S1 'DROI' NLS1 S2 ;
+SS1      = LS1 'TRAN' 1 (0. -1.5) ;
+*                                                                     *
+M1       = -5. 1. ;
+M2       = 5. 1. ;
+NLM1     = 13 ;
+LM1      = M1 'DROI' NLM1 M2 ;
+SM1      = LM1 'TRAN' NLM1 (0. 10.) ;
+*                                                                     *
+* Maillages de contact :                                              *
+*                                                                     *
+MCONT1   = ('IMPO' 'MAIL' LM1 ('INVE' LS1) 2.) 'COUL' 'JAUN' ;
+*                                                                     *
+* Traces :                                                            *
+*                                                                     *
+'SI' IG1 ;
+  'TITR' 'Maillages' ;
+  'TRAC' 'FACE' (SS1 'ET' SM1 'ET' MCONT1) ;
+'FINS' ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                      MODELES / CARACTERISTIQUES                     *
+*---------------------------------------------------------------------*
+*                                                                     *
+MODM1    = 'MODE' SM1 'MECANIQUE' 'ELASTIQUE' ;
+MATM1    = 'MATE' MODM1 'YOUN' 1.E3 'NU' 0.3 ;
+*                                                                     *
+MODS1    = 'MODE' SS1 'MECANIQUE' 'ELASTIQUE' ;
+MATS1    = 'MATE' MODS1 'YOUN' 2.E5 'NU' 0.25 ;
+*                                                                     *
+MOD0     = MODM1 'ET' MODS1 ;
+MAT0     = MATM1 'ET' MATS1 ;
+*
+MODC1    = 'MODE' MCONT1 'CONTACT' 'UNILATERAL' ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                          C.L. / CHARGEMENT                          *
+*---------------------------------------------------------------------*
+*                                                                     *
+* Deplacements imposes :                                              *
+*                                                                     *
+LM3      = SM1 'COTE' 3 ;
+LM4      = SM1 'COTE' 4 ;
+CLLM3    = 'BLOQ' LM3 'UY' ;
+CLLM4    = 'BLOQ' LM4 'UX' ;
+CLS1     = 'BLOQ' S1 'DEPL' ;
+CLS2     = 'BLOQ' S2 'DEPL' ;
+CL0      = CLLM3 'ET' CLLM4 'ET' CLS1 'ET' CLS2 ;
+*                                                                     *
+UY0      = -3. ;
+DCLLM3   = 'DEPI' CLLM3 UY0 ;
+*                                                                     *
+'SI' IG1 ;
+  'TITR' 'Deplacement impose au bord superieur du carre.' ;
+  'TRAC' ('VECT' (DCLLM3 'NOMC' 'UY') 1. 'UX' 'UY' 'VERT')
+  (SS1 'ET' SM1) ;
+'FINS' ;
+*                                                                     *
+* Chargements :                                                       *
+*                                                                     *
+LTPS1    = 'PROG' 0. 1. ;
+EV1      = 'EVOL' 'MANU' 'TEMPS' LTPS1 ('PROG' 0. 1.) ;
+*                                                                     *
+CHARU1   = 'CHAR' 'DIMP' DCLLM3 EV1 ;
+CHAR0    = CHARU1 ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                             RESOLUTION                              *
+*---------------------------------------------------------------------*
+*                                                                     *
+*--------------------------- avec INCREPL ----------------------------*
+*                                                                     *
+* Construction de la table INCREPL :                                  *
+*                                                                     *
+TAB1                         = 'TABL' ;
+TAB1 . 'TEMPS_INI'           = 'EXTR' LTPS1 1 ;
+TAB1 . 'TEMPS_FIN'           = 'EXTR' LTPS1 2 ;
+TAB1 . 'MODELE'              = MOD0 'ET' MODC1 ;
+TAB1 . 'MATERIAUX'           = MAT0 ;
+TAB1 . 'BLOCAGES_MECANIQUES' = CL0 ;
+TAB1 . 'CHARGEMENT'          = CHAR0 ;
+**TAB1 . 'CONTACT'             = MODC1 ;
+TAB1 . 'MESSAGES'            = VRAI ;
+*                                                                     *
+* Resolution :                                                        *
+*                                                                     *
+TAB2     = INCREPL TAB1 ;
+*                                                                     *
+*--------------------------- avec PASAPAS ----------------------------*
+*                                                                     *
+* Construction de la table PASAPAS :                                  *
+*                                                                     *
+TAB3                         = 'TABL' ;
+TAB3 . 'TEMPS_CALCULES'      = LTPS1 ;
+TAB3 . 'MODELE'              = MOD0 'ET' MODC1 ;
+TAB3 . 'CARACTERISTIQUES'    = MAT0 ;
+TAB3 . 'BLOCAGES_MECANIQUES' = CL0 ;
+TAB3 . 'CHARGEMENT'          = CHAR0 ;
+TAB3 . 'PREDICTEUR'          = 'MOT' 'HPP' ;
+*                                                                     *
+* Resolution :                                                        *
+*                                                                     *
+TAB4     = PASAPAS TAB3 ;
+*                                                                     *
+*                                                                     *
+*                                                                     *
+*---------------------------------------------------------------------*
+*                            DEPOUILLEMENT                            *
+*---------------------------------------------------------------------*
+*                                                                     *
+DEP1     = TAB2 . 'DU_FIN' ;
+DEP2     = (TAB4 . 'DEPLACEMENTS') . 1 ;
+DEP2     = 'ENLE' DEP2 'LX' ;
+*                                                                     *
+* Deformee :                                                          *
+*                                                                     *
+DEF0_1   = 'DEFO' (SM1 'ET' SS1) DEP1 0. 'VERT' ;
+DEF1_1   = 'DEFO' (SM1 'ET' SS1) DEP1 1. 'ROUG' ;
+DEF0_2   = 'DEFO' (SM1 'ET' SS1) DEP2 0. 'VERT' ;
+DEF1_2   = 'DEFO' (SM1 'ET' SS1) DEP2 1. 'ROUG' ;
+*                                                                     *
+'SI' IG1 ;
+  'TITR' 'INCREPL : Maillages non deforme (vert) et deforme (rouge).' ;
+  'TRAC' (DEF0_1 'ET' DEF1_1) ;
+  'TITR' 'PASAPAS : Maillages non deforme (vert) et deforme (rouge).' ;
+  'TRAC' (DEF0_2 'ET' DEF1_2) ;
+'FINS' ;
+*                                                                     *
+* Champ de deplacements :                                             *
+*                                                                     *
+ERR1     = ('MAXI' ('ABS' (DEP2 - DEP1))) / ('MAXI' ('ABS' DEP2)) ;
+*                                                                     *
+'SI' IG1 ;
+  'TITR' 'INCREPL : Champ de deplacements.' ;
+  'TRAC' ('CHAN' 'CHAM' DEP1 MOD0 'NOEUDS') MOD0 ;
+  'TITR' 'PASAPAS : Champ de deplacements.' ;
+  'TRAC' ('CHAN' 'CHAM' DEP2 MOD0 'NOEUDS') MOD0 ;
+'FINS' ;
+*                                                                     *
+* Comparaison des champs de contraintes :                             *
+*                                                                     *
+SIG1     = TAB2 . 'SIGMA_FIN' ;
+SIG2     = (TAB4 . 'CONTRAINTES') . 1 ;
+ERR2     = ('MAXI' ('ABS' (SIG1 - SIG2))) / ('MAXI' ('ABS' SIG2)) ;
+*                                                                     *
+'SI' IG1 ;
+  'TITR' 'INCREPL : Champ de contraintes.' ;
+  'TRAC' SIG1 MOD0 ;
+  'TITR' 'PASAPAS : Champ de contraintes.' ;
+  'TRAC' SIG2 MOD0 ;
+'FINS' ;
+*                                                                     *
+* Visualisations des reactions :                                      *
+*                                                                     *
+REAC1    = (TAB2 . 'REACTIONS') ;
+REAC2    = (TAB4 . 'REACTIONS') . 1 ;
+ERR3     = ('MAXI' ('ABS' (REAC1 - REAC2))) / ('MAXI' ('ABS' REAC2)) ;
+*                                                                     *
+'SI' IG1 ;
+  VR1      = 'VECT' REAC1 0.8E-2 'FX' 'FY' 'ROUG' ;
+  'TITR' 'INCREPL : Forces de reaction.' ;
+  'TRAC' VR1 (SS1 'ET' SM1) ;
+  VR2      = 'VECT' REAC2 0.8E-2 'FX' 'FY' 'ROUG' ;
+  'TITR' 'PASAPAS : Forces de reaction.' ;
+  'TRAC' VR2 (SS1 'ET' SM1) ;
+'FINS' ;
+*                                                                     *
+LERR0    = 'PROG' ERR1 ERR2 ERR3 ;
+ERR0     = 'MAXI' LERR0 ;
+ERRMAX1  = 1.E-3 ;
+*                                                                     *
+'OPTI'  'ECHO' 0 ;
+'SAUT' 1 'LIGN' ;
+'MESS'
+'------------------------ RESULTAT CAS-TEST ------------------------' ;
+'SAUT' 1 'LIGN' ;
+'MESS'
+'Erreur relative entre PASAPAS et INCREPL calculee entre :' ;
+'MESS'
+'les deplacements, les contraintes et les reactions nodales.' ;
+'MESS' 
+'-----------------------------------------------------------' ;
+'MESS' ;
+'MESS' '    MAX. ERREUR =' ERR0 ;
+'SAUT' 1 'LIGN' ;
+'SI' (ERR0 '<EG' ERRMAX1) ;
+  'MESS' '==> Erreur relative inferieure a' ERRMAX1 ':' ;
+  'MESS' '' ;
+  'MESS' '                        __________________' ;
+  'MESS' '                        |                |' ;
+  'MESS' '                        |  TEST REUSSI ! |' ;
+  'MESS' '                        |________________|' ;
+  'SAUT' 1 'LIGN' ;
+'SINO' ;
+  'MESS' '==> Erreur relative superrieure a' ERRMAX1 ':' ;
+  'MESS' '' ;
+  'MESS' '                        __________________' ;
+  'MESS' '                        |                |' ;
+  'MESS' '                        |     ERREUR !   |' ;
+  'MESS' '                        |________________|' ;
+  'SAUT' 1 'LIGN' ;
+  'ERRE' 5 ;
+'FINS' ;
+'MESS'
+'-------------------------- FIN CAS-TEST ---------------------------' ;
+*                                                                     *
+'FIN' ;
+'OPTI'  'ECHO' 1 ;

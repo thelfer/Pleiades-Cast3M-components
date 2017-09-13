@@ -1,0 +1,26 @@
+@Author Thomas Helfer;
+@Date   24/08/2016;
+@Description{
+};
+
+@ModellingHypothesis 'Axisymmetrical';
+@AccelerationAlgorithm 'Cast3M';
+@Behaviour<umat> './src/libUmatBehaviour.so' 'umatsaintvenantkirchhoffelasticity';
+@MaterialProperty<constant> 'YoungModulus' 200.e9;
+@MaterialProperty<constant> 'PoissonRatio'   0.3;
+
+@ImposedDrivingVariable 'FZZ' {0:1.,1.:1.7};
+@ImposedDrivingVariable 'FRZ' 0.;
+@ImposedDrivingVariable 'FZR' 0.;
+
+@ExternalStateVariable 'Temperature' 293.15;
+
+@Evolution<function> 'Frr' 'sqrt(1-PoissonRatio*(FZZ**2-1))';
+@Evolution<function> 'J'   '(1-PoissonRatio*(FZZ**2-1))*FZZ';
+@Evolution<function> 'Szz' 'YoungModulus*(FZZ**2-1)/2';
+@Evolution<function> 'szz' 'Szz*(FZZ**2)/J';
+
+@Times {0.,1 in 50};
+@Test<function> {'FRR':'Frr','FTT':'Frr'} 1.e-12;
+@Test<function> {'FRR':'sqrt(1-PoissonRatio*(FZZ**2-1))'} 1.e-12;
+@Test<function> {'SZZ':'szz'} 1.e-1;

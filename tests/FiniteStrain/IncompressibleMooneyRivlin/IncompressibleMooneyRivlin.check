@@ -1,0 +1,16 @@
+/* Generating MFront behaviours */
+
+@Command "mfront --interface=castem IncompressibleMooneyRivlinBehaviour.mfront";
+@Command "mfront --obuild";
+
+/* Incompressible Mooney Rivlin */
+@Command "mtest IncompressibleMooneyRivlinUniaxialTesting.mtest";
+@Command "castem2014_PLEIADES IncompressibleMooneyRivlinUniaxialTesting.dgibi";
+@Precision 1.e-3;
+@Test {{"IncompressibleMooneyRivlinUniaxialTesting.res":13},
+       {"IncompressibleMooneyRivlinUniaxialTesting-castem.res":2}};
+
+// @Clean {"castem","include","fort.98","IncompressibleMooneyRivlin-Exec-*.out",
+//     "IncompressibleMooneyRivlinUniaxialTesting:*.res"
+//     "TEST-IncompressibleMooneyRivlin.xml",
+//     "UTIL*"}

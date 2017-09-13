@@ -1,0 +1,13 @@
+/* Generating MFront behaviours */
+
+@Command "mfront --interface=castem ImplicitSimoMieheElastoPlasticity.mfront";
+@Command "mfront --obuild";
+
+/* Testing the Simo-Miehe plastic behaviour */
+
+@Command "mtest ImplicitSimoMieheElastoPlasticityUniaxialTesting.mtest";
+@Command "castem2014_PLEIADES ImplicitSimoMieheElastoPlasticityUniaxialTesting.dgibi";
+
+@Precision 1.e4;
+@Test {{"ImplicitSimoMieheElastoPlasticityUniaxialTesting.res":8},
+       {"ImplicitSimoMieheElastoPlasticityUniaxialTesting-castem.res":2}};

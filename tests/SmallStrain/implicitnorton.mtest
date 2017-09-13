@@ -1,0 +1,16 @@
+@Author Thomas Helfer ;
+@Date   23/08/2016;
+@Description{
+  "This file describes a simple displacement-driven "
+  "uniaxial tensile test for a Norton behaviour."
+};
+
+@PredictionPolicy 'LinearPrediction';
+@StiffnessMatrixType 'ConsistentTangentOperator';
+@Behaviour<umat> 'src/libUmatBehaviour.so' 'umatimplicitnorton';
+@MaterialProperty<constant> 'YoungModulus'     150.e9;
+@MaterialProperty<constant> 'PoissonRatio'       0.333;
+
+@ImposedStrain 'EZZ' {0:0,2500:2.5e-2};
+@ExternalStateVariable 'Temperature' 293.15;
+@Times {0.,2500 in 20};

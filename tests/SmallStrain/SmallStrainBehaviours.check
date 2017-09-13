@@ -1,0 +1,14 @@
+@Command "mfront --interface=castem ImplicitNorton.mfront";
+@Command "mfront --obuild";
+@Command "mtest implicitnorton.mtest";
+@Command "castem2014_PLEIADES implicitnorton.dgibi";
+@Command "castem2014_PLEIADES implicitnorton-ktac.dgibi";
+@TestType Absolute;
+@Precision 1.e4;
+@Test "implicitnorton.res"         "implicitnorton-mtest.ref"  10;
+@Test "implicitnorton-castem.res"  "implicitnorton-castem.ref"  2;
+@Test "implicitnorton-ktac-castem.res" "implicitnorton-castem.ref"  2;
+@Test {{"implicitnorton.res":10},
+       {"implicitnorton-castem.res":2}};
+@Test {{"implicitnorton.res":10},
+       {"implicitnorton-ktac-castem.res":2}};

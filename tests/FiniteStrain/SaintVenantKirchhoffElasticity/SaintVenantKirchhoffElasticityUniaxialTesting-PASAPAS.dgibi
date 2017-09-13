@@ -1,0 +1,119 @@
+*=======================================================================
+*
+*                       PROCEDURES DEPENDANTES
+*
+*=======================================================================
+
+
+DEBPROC EVO2FICH EV1*EVOLUTION FICOUT*MOT;
+  PROG1=EXTR EV1 ABSC;
+  PROG2=EXTR EV1 ORDO;
+  NB=DIME PROG1;
+  I=0;
+  ii=vale impr;
+  OPTI IMPR 10 IMPR FICOUT;
+  REPETER BOU1 NB;
+    I=I+1;
+    X1=EXTR PROG1 I;
+    Y1=EXTR PROG2 I;
+    MESSAGE X1 Y1 ;
+    FIN BOU1;
+  OPTI IMPR II;
+FINPROC;
+
+'OPTION' 'ERREUR' 'FATALE' ;
+'OPTION' 'DIME' 2 'ELEM' qua4;
+'OPTION' 'EPSILON' 'UTILISATEUR';
+'OPTION' 'MODELISER' 'AXISYMETRIE';
+
+TMAX = 1.;
+NPAS = 10;
+UMAX = 7.e-1;
+
+O = 0. 0.;
+A = 1. 0.;
+
+l1 = 'DROIT' 1 O A;
+l2 = l1 'PLUS' (0. 1.);
+
+s1 = l1 'REGLER' 1 l2;
+
+coel2D = 'MOTS' 'YOUN' 'NU' 'RHO' 'ALPH';
+para2D = 'MOTS' 'T';
+
+mod1 = 'MODELISER' s1 'MECANIQUE' 'ELASTIQUE' 'ISOTROPE'
+   'NON_LINEAIRE' 'UTILISATEUR' 'EPSILON' 'UTILISATEUR'
+   'LIB_LOI' './src/libUmatBehaviour.so'
+   'FCT_LOI' 'umatsaintvenantkirchhoffelasticity'
+   'C_MATERIAU' coel2D
+   'PARA_LOI'   para2D
+   'CONS' M;
+   
+MAT1 = 'MATERIAU' MOD1 'YOUN' 200e9 'NU' 0.3 'ALPH' 0. 'RHO' 0.;
+
+***
+L_temps = PROG 0. PAS (TMAX/ NPAS)  TMAX;
+
+*** CONDITIONS AUX LIMITES
+************************************************
+* Conditions aux limites éprouvette
+CL1 = 'BLOQUE' 'UZ'  L1 ;
+CL2 = 'BLOQUE' 'UZ'  L2 ;
+CLE1 = CL1 ET CL2;
+
+* Chargement mécanique et thermique
+LI1  = PROG 0. TMAX ;
+LI2  = PROG 0. 1. ;
+EV   = EVOL MANU T LI1 F(T) LI2 ;
+DEP1 = DEPI CL2 UMAX;
+CHA1 = CHAR 'DIMP' DEP1 EV ;
+
+* Champ de température
+TEK = 293.15;
+THE1 = MANU 'CHPO' S1 1 'T' TEK ;
+EV2 = EVOL MANU (prog 0. TMAX) (prog 1. 1.) ;
+CHARTHER = CHAR 'T' THE1 EV2 ;
+                             
+** CALCUL
+* Définition des pas de calcul et de sauvegarde
+************************************************************
+* Définition de la table de la phase de charge
+TAB1 = TABLE ;
+TAB1.'MODELE' = MOD1 ;
+TAB1.'CARACTERISTIQUES' = MAT1 ;
+TAB1.'BLOCAGES_MECANIQUES' = CLE1 ;
+TAB1.'CHARGEMENT' = CHA1 'ET' CHARTHER ;
+*TAB1.'PRECISION' = 1.E-5 ;
+*TAB1.'FTOL' = 1.E-5 ;
+*TAB1.'MTOL' = 1.E-5 ;
+TAB1.'CONVERGENCE_FORCEE' = FAUX ;
+TAB1.'GRANDS_DEPLACEMENTS' = VRAI ;
+TAB1.'TEMPS_CALCULES' = L_TEMPS;
+TAB1.'TEMPS_SAUVES' = L_TEMPS;
+*
+L_abs = TAB1.'TEMPS_SAUVES' ;
+n_abs = 'DIMENSION' L_abs ;
+*
+PASAPAS TAB1 ;
+*
+
+pt = 'PROG';
+ps = 'PROG';
+'REPETER' i ('DIMENSION' (tab1. 'CONTRAINTES' ));
+  t  = tab1. 'TEMPS'. (&i '-' 1);
+  pt = pt 'ET' ('PROG' tab1. 'TEMPS'. (&i '-' 1));
+  s  = tab1. 'CONTRAINTES'. (&i '-' 1);
+  ps = ps 'ET' ('MAXIMUM' ('EXCO' s 'SMZZ'));
+'FIN'  i;
+
+EVO2FICH ('EVOL' 'MANUEL' pt ps)
+      'SaintVenantKirchhoffElasticityUniaxialTesting-castem-PASAPAS.res';
+
+'FIN' ;
+
+
+
+
+
+
+

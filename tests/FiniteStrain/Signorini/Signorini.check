@@ -1,0 +1,13 @@
+/* Generating MFront behaviours */
+
+@Command "mfront --interface=castem Signorini.mfront";
+@Command "mfront --obuild";
+
+/* Saint-Venant Kirchhoff elasticity */
+
+@Command "castem2014_PLEIADES -m XXL SignoriniStrip.dgibi";
+@Command "castem2014_PLEIADES SignoriniStrip-PASAPAS.dgibi";
+
+// @Precision 1.e5;
+// @Test {{"SignoriniStrip.res":8},
+//        {"SignoriniStrip-castem.res":2}};

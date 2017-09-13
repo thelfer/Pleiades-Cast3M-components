@@ -1,0 +1,136 @@
+DEBPROC EVO2FICH EV1*EVOLUTION FICOUT*MOT;
+  PROG1=EXTR EV1 ABSC;
+  PROG2=EXTR EV1 ORDO;
+  NB=DIME PROG1;
+  I=0;
+  ii=vale impr;
+  OPTI IMPR 10 IMPR FICOUT;
+  REPETER BOU1 NB;
+    I=I+1;
+    X1=EXTR PROG1 I;
+    Y1=EXTR PROG2 I;
+    MESSAGE X1 Y1 ;
+    FIN BOU1;
+  OPTI IMPR II;
+FINPROC;
+
+'OPTION' 'DIME' 2;
+'OPTION' 'MODELISER' 'AXIS';
+'OPTION' 'ELEM' 'QUA8';
+
+R = 5.e-3;
+h = 3.e-2;
+t_deb = 0. ;
+t_fin = 1. ;
+NPAS = 100;
+
+O = (0. 0.);
+A = (R  0. );
+B = (R  h);
+C = (0  h);
+
+lb = 'DROIT' 20  O A;
+l2 = 'DROIT' 50 A B;
+lh = 'DROIT' 20 B C;
+l4 = 'DROIT' 50 C O;
+
+v = 'DALLER' lb l2 lh l4;
+
+*'TRACER' (('COULEUR' lh 'VERT') 'ET' v);
+
+** conditions aux limites
+cl1 = ('BLOQUE' 'UR' lb) 'ET' ('BLOQUE' 'UR' lh);
+cl2 = 'BLOQUE' 'UZ' lb;
+cl3 = 'BLOQUE' 'UZ' lh;
+
+** chargement
+* dep1 = 'DEPIMPOSE' cl3 (-0.55 '*' h);
+dep1 = 'DEPIMPOSE' cl3 -0.015*0.6;
+* dep1 = 'DEPIMPOSE' cl3 -0.003;
+*(-1 * h * 0.75);
+L_tps = 'PROG' t_deb t_fin ;
+ev = 'EVOL' 'MANU' 'T'     ('PROG' t_deb t_fin)
+                    'F(T)' ('PROG' 0. 1.);
+ch1 = 'CHARGEMENT' 'DIMP' dep1 ev;
+
+* Champ de température
+TEK = 293.15;
+THE1 = MANU 'CHPO' V 1 'T' TEK ;
+EV2 = EVOL MANU (prog t_deb t_fin) (prog 1. 1.) ;
+CHARTHER = CHAR 'T' THE1 EV2 ;
+
+** modèles et matériaux
+
+'OPTION' 'EPSILON' 'UTILISATEUR';
+
+C10=2.668e6;
+C01=0.271e6;
+C20=0.466e6;
+xnu=0.499;
+K=4*(1+xnu)*(C10+C01)/3/(1-(2*xnu));
+xyoun=4*(1+xnu)*(C10+C01);
+
+coel = 'MOTS' 'YOUN' 'NU' 'RHO' 'ALPH' 'K' 'C10' 'C01' 'C20';
+params = 'MOTS' 'T';
+mod1 = 'MODELISER' v 'MECANIQUE' 'ELASTIQUE' 'NON_LINEAIRE'
+'UTILISATEUR' 'EPSILON' 'UTILISATEUR' 'Q8RI'
+'LIB_LOI' 'src/libUmatBehaviour.so'
+'FCT_LOI' 'umatsignorini'
+'C_MATERIAU' coel 'PARA_LOI' params 'CONS' M;
+
+mat1 = 'MATERIAU' mod1 'YOUN' xyoun 'NU' xnu 'RHO' 0. 'ALPH' 0.
+                  'K' K 'C10' C10 'C01' C01 'C20' C20;
+
+TAB1 = 'TABLE' ;
+TAB1.'MODELE' = mod1 ;
+TAB1.'CARACTERISTIQUES' = mat1;
+TAB1.'BLOCAGES_MECANIQUES' = cl1 'ET' cl2 'ET' cl3;
+TAB1.'CHARGEMENT' = ch1 'ET' charther;
+TAB1.'CONVERGENCE_FORCEE' = FAUX ;
+TAB1.'GRANDS_DEPLACEMENTS' = VRAI ;
+TAB1.'TEMPS_CALCULES' =
+   'PROG' t_deb 'PAS' ((t_fin '-' t_deb) '/' NPAS) t_fin;
+TAB1.'PRECISION' = 1.e-5;
+PASAPAS TAB1 ;
+
+n = ('DIME' tab1. 'DEPLACEMENTS') '-' 1;
+u = tab1. 'DEPLACEMENTS'. n;
+s = tab1. 'CONTRAINTES'. n;
+
+* def0 = 'DEFORME' v u 0. 'BLAN';
+* def1 = 'DEFORME' v u 10. 'ROUG';
+* 'TRACER' (def0 'ET' def1) 'FACE' 'CACHE';
+
+def0 = 'DEFORME' v u 0. 'BLAN';
+def1 = 'DEFORME' v u 1. 'ROUG';
+'TRACER' (def0 'ET' def1) 'FACE' 'CACHE';
+'TRACER' def1 'FACE' 'CACHE';
+
+* 'DEPLACER' v 'PLUS' u;
+* 'TRACER' ('EXCO' 'SMZZ' s) mod1;
+* 'DEPLACER' v 'MOINS' u;
+
+pu  = 'PROG';
+pf  = 'PROG';
+pf2 = 'PROG';
+pv  = 'PROG';
+
+'REPETER' i n;
+   t = tab1. 'TEMPS'. &i;
+   u = tab1. 'DEPLACEMENTS'. &i;
+   uz = 'MAXIMUM' ('REDU' ('EXCO' 'UZ' u) lh);
+   f  = 'MAXIMUM' ('RESULT' ('REACTION' cl3 u));
+   f2 = 'MAXIMUM' ('RESULT' ('REACTION' cl2 u));
+   'DEPLACER' v 'PLUS' u;
+   vtot = 'INTG' mod1 ('MANUEL' 'CHML' mod1 'SCAL' 1);
+   'DEPLACER' v 'MOINS' u;
+   pu  = pu  'ET' ('PROG' uz);
+   pf  = pf  'ET' ('PROG' f);
+   pf2 = pf2 'ET' ('PROG' f2);
+   pv  = pv  'ET' ('PROG' vtot);
+*   'MESSAGE' uz f f2 vtot (vtot/(3.14159*R*R*h)); 
+'FIN' i
+
+EVO2FICH ('EVOL' 'MANUEL' pu pf)  'SignoriniPad-PASAPAS-f.res';
+EVO2FICH ('EVOL' 'MANUEL' pu pf2) 'SignoriniPad-PASAPAS-f2.res';
+EVO2FICH ('EVOL' 'MANUEL' pu pv)  'SignoriniPad-PASAPAS-v';

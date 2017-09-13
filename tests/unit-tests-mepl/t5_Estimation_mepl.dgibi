@@ -1,0 +1,265 @@
+'OPTION' 'EPSI' 'LINEAIRE' ;
+*---------------------------------------------------------------------*
+*                Cas-test de validation de MEPL                       *
+*---------------------------------------------------------------------*
+*                                                                     *
+'OPTI' 'ECHO' 0 ;
+*                                                                     *
+'OPTI' 'DIME' 2 'ELEM' QUA4 'MODE' 'PLAN' 'DEFO' ;
+*                                                                     *
+* Si TRACes desires, mettre IG1 a VRAI :                              *
+IG1      = FAUX ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                              MAILLAGE                               *
+*---------------------------------------------------------------------*
+*                                                                     *
+P0       = 0. 0. ;
+P1       = 10. 0. ;
+NLS1     = 20 ;
+LS1      = P0 'DROI' NLS1 P1 ;
+YP3      = 0.5 ;
+P3       = 0. YP3 ;
+S1       = LS1 'TRAN' 5 P3 ;
+*                                                                     *
+* Traces :                                                            *
+*                                                                     *
+'SI' IG1 ;
+  'TITR' 'Maillage.' ;
+  'TRAC' S1 ;
+'FINS' ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                      MODELES / CARACTERISTIQUES                     *
+*---------------------------------------------------------------------*
+*                                                                     *
+MOD0     = 'MODE' S1 'MECANIQUE' 'ELASTIQUE' 'ISOTROPE' 'ENDOMMAGEMENT'
+  'MAZARS' ;
+MAT0     = 'MATE' MOD0 'YOUN' 30.E9 'NU' 0.2 'KTR0' 1.E-04 'ACOM' 1.4
+  'BCOM' 1900.  'ATRA' 0.8 'BTRA' 17000. 'BETA' 1.06 ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                          C.L. / CHARGEMENT                          *
+*---------------------------------------------------------------------*
+*                                                                     *
+* Deplacements imposes :                                              *
+*                                                                     *
+PAPP1    = S1 'POIN' 'PROC' (9. 0.) ;
+PCHA1    = (S1 'COOR' 1) 'POIN' 'EGINFE' 2.5 ;
+PCHA1    = (PCHA1 'COOR' 2) 'POIN' 'EGAL' 0.5 ;
+CLSYM1   = 'BLOQ' P0 'UX' ;
+CLAPP1   = 'BLOQ' PAPP1 'UY' ;
+CLCHA1   = 'BLOQ' PCHA1 'UY' ;
+CL0      = CLSYM1 'ET' CLAPP1 'ET' CLCHA1 ;
+*                                                                     *
+UY0      = -0.02 ;
+DCLCHA1  = 'DEPI' CLCHA1 UY0 ;
+*                                                                     *
+'SI' IG1 ;
+  'TRAC' ('VECT' (DCLCHA1 'NOMC' 'UY') 10. 'UX' 'UY' 'VERT')
+    ((PCHA1 'COUL' 'ROUG') 'ET' ((PAPP1 'MANU' 'POI1') 'COUL' 'BLEU')
+    'ET' S1) 'TITR'
+    'Deplacements imposes a la poutre (vert) et point d"appui (bleu).'
+    ;
+'FINS' ;
+*                                                                     *
+* Chargements :                                                       *
+*                                                                     *
+LTPS2    = 'PROG' 0. PAS 0.1 0.9 ;
+EV2      = 'EVOL' 'MANU' 'TEMPS' LTPS2 LTPS2 ;
+*                                                                     *
+CHARU2   = 'CHAR' 'DIMP' DCLCHA1 EV2 ;
+*
+NB2      = ('DIME' LTPS2) - 1 ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                             RESOLUTION                              *
+*---------------------------------------------------------------------*
+*                                                                     *
+*------------------------------ PASAPAS ------------------------------*
+*                                                                     *
+TAB1                               = 'TABL' ;
+TAB1 . 'TEMPS_CALCULES'            = LTPS2 ;
+TAB1 . 'MODELE'                    = MOD0 ;
+TAB1 . 'CARACTERISTIQUES'          = MAT0 ;
+TAB1 . 'BLOCAGES_MECANIQUES'       = CL0 ;
+TAB1 . 'CHARGEMENT'                = CHARU2 ;
+TAB1 . 'MOVA'                      = 'D   ' ;
+TAB1 . 'MES_SAUVEGARDES'           = 'TABL' ;
+TAB1 . 'MES_SAUVEGARDES' . 'DEFIN' = VRAI ;
+*                                                                     *
+*                                                                     *
+PASAPAS TAB1 ;
+*                                                                     *
+DEP1     = (TAB1 . 'DEPLACEMENTS') . NB2 ;
+DEP1     = DEP1 'ENLE' 'LX' ;
+EPI1     = (TAB1 . 'DEFORMATIONS_INELASTIQUES') . NB2 ;
+SIG1     = (TAB1 . 'CONTRAINTES') . NB2 ;
+REA1     = (TAB1 . 'REACTIONS') . NB2 ;
+*                                                                     *
+* Courbe force-deplacement :                                          *
+FLECH1   = 'PROG' 0. ;
+RES1     = 'PROG' 0. ;
+'REPE' B1 NB2 ;
+  DEPI1    = 'EXTR' (TAB1 . 'DEPLACEMENTS' . &B1) 'UY' P0 ;
+  FLECH1   = FLECH1 'ET' ('PROG' DEPI1) ;
+  REAI1    = 'EXTR' (TAB1 . 'REACTIONS' . &B1) 'FY' PAPP1 ;
+  RES1     = RES1 'ET' ('PROG' (2.* REAI1)) ;
+'FIN' B1 ;
+FLECH1   = -1. * FLECH1 ;
+EVUF1    = 'EVOL' 'BLEU' 'MANU' 'UY' FLECH1 'FY' RES1 ;
+*                                                                     *
+*------------------------------ MEPL ---------------------------------*
+*                                                                     *
+TAB2                         = 'TABL' ;
+TAB2 . 'MODELE'              = MOD0 ;
+TAB2 . 'MATERIAUX'           = MAT0 ;
+TAB2 . 'BLOCAGES_MECANIQUES' = CL0 ;
+TAB2 . 'CHARGEMENT'          = CHARU2 ;
+TAB2 . 'MOVA'                = 'D   ' ;
+TAB2 . 'MESSAGES'            = VRAI ;
+*                                                                     *
+TAB2 . 'TEMPS_INI'           = 'EXTR' LTPS2 1 ;
+FLECH2   = 'PROG' 0. ;
+RES2     = 'PROG' 0. ;
+'REPE' B2 NB2 ;
+  TPSI2    = 'EXTR' LTPS2 (&B2 + 1) ;
+  TAB2 . 'TEMPS_FIN'           = TPSI2 ;
+  TAB2     = MEPL TAB2 ;
+  'SAUT' 1 'LIGN' ;
+  DEP2     = TAB2 . 'U_FIN' ;
+  FLECH2   = FLECH2 'ET' ('PROG' ('EXTR' DEP2 'UY' P0)) ;
+  REA2     = TAB2 . 'REACTIONS' ;
+  RES2     = RES2 'ET' ('PROG' (2. * ('EXTR' REA2 'FY' PAPP1))) ;
+'FIN' B2 ;
+FLECH2   = -1. * FLECH2 ;
+EVUF2    = 'EVOL' 'ROUG' 'MANU' 'UY' FLECH2 'FY' RES2 ;
+*                                                                     *
+EPI2     = TAB2 . 'EPSIN_FIN' ;
+SIG2     = TAB2 . 'SIGMA_FIN' ;
+*
+*------------------------------ MEPL - ESTIMATION --------------------*
+MESSAGE '* UTILISATION DE L ESTIMATION INTIALE' ;
+*                                                                     *
+TAB3                         = 'TABL' ;
+TAB3 . 'MODELE'              = MOD0 ;
+TAB3 . 'MATERIAUX'           = MAT0 ;
+TAB3 . 'BLOCAGES_MECANIQUES' = CL0 ;
+TAB3 . 'CHARGEMENT'          = CHARU2 ;
+TAB3 . 'MOVA'                = 'D   ' ;
+TAB3 . 'MESSAGES'            = VRAI ;
+TAB3 . 'ESTIMATION'          = 'TABLE' ;
+TABEST3 = TAB3.'ESTIMATION' ;
+TAB3 . 'SAUVE_ESTIMATION'    = VRAI ;
+*                                                                     *
+TAB3 . 'TEMPS_INI'           = 'EXTR' LTPS2 1 ;
+FLECH3   = 'PROG' 0. ;
+RES3     = 'PROG' 0. ;
+'REPE' B3 NB2 ;
+  TPSI3    = 'EXTR' LTPS2 (&B3 + 1) ;
+  TAB3 . 'TEMPS_FIN'           = TPSI3 ;
+  TAB3 . 'ESTIMATION'          = 'TABLE' ;
+  TABEST3 = TAB3.'ESTIMATION' ;
+  DEPE     = (TAB1. 'DEPLACEMENTS'). &B3 ;
+  TABEST3 . 'U_EST'  = DEPE 'ENLE' 'LX' ;
+  TABEST3 . 'LX_EST' = DEPE 'EXCO' 'LX' 'NOID' 'LX' ;
+  TAB3     = MEPL TAB3 ;
+  'SAUT' 1 'LIGN' ;
+  DEP3     = TAB3 . 'U_FIN' ;
+  FLECH3   = FLECH3 'ET' ('PROG' ('EXTR' DEP3 'UY' P0)) ;
+  REA3     = TAB3 . 'REACTIONS' ;
+  RES3     = RES3 'ET' ('PROG' (2. * ('EXTR' REA3 'FY' PAPP1))) ;
+'FIN' B3 ;
+FLECH3   = -1. * FLECH3 ;
+EVUF3    = 'EVOL' 'ROUG' 'MANU' 'UY' FLECH3 'FY' RES3 ;
+*                                                                     *
+EPI3     = TAB3 . 'EPSIN_FIN' ;
+SIG3     = TAB3 . 'SIGMA_FIN' ;
+*
+*--------------------------- Depouillement ---------------------------*
+*                                                                     *
+* Ecarts relatifs PASAPAS/xxPL :                                      *
+MAXDEP1  = ('MAXI' 'ABS' DEP1) + 1.D-10 ;
+MAXEPI1  = ('MAXI' 'ABS' EPI1) + 1.D-10 ;
+MAXSIG1  = ('MAXI' 'ABS' SIG1) + 1.D-10 ;
+MAXREA1  = ('MAXI' 'ABS' REA1) + 1.D-10 ;
+*
+ERRU2    = ('MAXI' 'ABS' (DEP1 - DEP2)) / MAXDEP1 ;
+ERRE2    = ('MAXI' 'ABS' (EPI1 - EPI2)) / MAXEPI1 ;
+ERRS2    = ('MAXI' 'ABS' (SIG1 - SIG2)) / MAXSIG1 ;
+ERRR2    = ('MAXI' 'ABS' (REA1 - REA2)) / MAXREA1 ;
+*
+ERRU3    = ('MAXI' 'ABS' (DEP1 - DEP3)) / MAXDEP1 ;
+ERRE3    = ('MAXI' 'ABS' (EPI1 - EPI3)) / MAXEPI1 ;
+ERRS3    = ('MAXI' 'ABS' (SIG1 - SIG3)) / MAXSIG1 ;
+ERRR3    = ('MAXI' 'ABS' (REA1 - REA3)) / MAXREA1 ;
+*                                                                     *
+* Deformees :                                                         *
+DEFO0    = 'DEFO' S1 DEP1 0. 'BLAN' ;
+DEFO1    = 'DEFO' S1 DEP1 1. 'VERT' ;
+DEFO2    = 'DEFO' S1 DEP2 1. 'ROUG' ;
+DEFO3    = 'DEFO' S1 DEP3 1. 'BLEU' ;
+*                                                                     *
+* Reactions :                                                         *
+VR1      = 'VECT' REA1 2.E-5 'FX' 'FY' 'VERT' ;
+VR2      = 'VECT' REA2 2.E-5 'FX' 'FY' 'ROUG' ;
+VR3      = 'VECT' REA3 2.E-5 'FX' 'FY' 'BLEU' ;
+*                                                                     *
+* Traces :                                                            *
+'SI' IG1 ;
+  'DESS' (EVUF1 'ET' EVUF2 'ET' EVUF3)
+  'TITR' 'Courbe force-deplacement (PASAPAS=vert, xxPL=rougbleu).' ;
+*                                                                     *
+  'TITR'
+'Maillages : initial (blan), deformes (PASAPAS=vert, xxPL=rougbl).';
+  'TRAC' (DEFO0 'ET' DEFO1 'ET' DEFO2 'ET' DEFO3) ;
+*                                                                     *
+  'TITR'
+    'Ecart relatif maximal PASAPAS/xxPL sur les deplacements.' ;
+  'TRAC' ('CHAN' 'CHAM' ('ABS' (DEP1 - DEP2) / MAXDEP1) MOD0 'NOEUDS')
+    MOD0 ;
+  'TITR'
+    'Ecart maximal xxPL sans/avec ESTIM sur les deplacements.' ;
+  'TRAC' ('CHAN' 'CHAM' ('ABS' (DEP2 - DEP3)) MOD0 'NOEUDS')
+    MOD0 ;
+*                                                                     *
+  'TITR'
+'Ecart relatif maximal PASAPAS/xxPL sur les def. inelastiques.' ;
+  'TRAC' ('ABS' (EPI1 - EPI2) / MAXEPI1) MOD0 ;
+*                                                                     *
+  'TITR' 'Ecart relatif maximal PASAPAS/xxPL sur les contraintes.' ;
+  'TRAC' ('ABS' (SIG1 - SIG2) / MAXSIG1) MOD0 ;
+*                                                                     *
+  'TITR' 'Reactions (PASAPAS=vert, xxPL=rouge/bleu).' ;
+  'TRAC' (VR1 'ET' VR2 'ET' VR3) S1 ;
+'FINS' ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                                                                     *
+* Affichage des ecarts :                                              *
+VELCH1   = 'VALE' 'ECHO' ;
+'OPTI' 'ECHO' 0 ;
+'SAUT' 1 'LIGN' ;
+'MESS'
+' *** Ecart relatif maximal PASAPAS/xxPL au dernier pas de calcul :'
+  ;
+'MESS' ;
+'MESS'
+'-----------------------------' ;
+'MESS'
+'  Deplacements      :'  ERRU2 ERRU3 ;
+'MESS'
+'  Defor. inelast.   :'  ERRE2 ERRE3 ;
+'MESS'
+'  Contraintes       :'  ERRS2 ERRS3 ;
+'MESS'
+'  Reactions nodales :'  ERRR2 ERRR3 ;
+'MESS'
+'-----------------------------' ;
+'SAUT' 1 'LIGN' ;
+'OPTI' 'ECHO' VELCH1 ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                                                                     *
+'FIN' ;
+'OPTI'  'ECHO' 1 ;

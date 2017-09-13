@@ -1,0 +1,188 @@
+'OPTION' 'EPSI' 'LINEAIRE' ;
+INCREPL = 'TEXT' MEPL ;
+TEMPS ;                                                                         
+*           Test Plas8.dgibi: Jeux de données         *
+*           ---------------------------------         *
+*                                                     *
+*
+complet = FAUX;
+*
+*************************************************
+*  pour calcul complet mettre complet à : vrai;
+*************************************************
+
+OPTION ECHO 0;                                                                  
+GRAPH='N';                                                                      
+*opti trac bens;
+SAUT PAGE ;                                                                     
+*                                                                               
+*******************************************************       
+*  TEST PLAS8
+*
+*   CONSOLE SOUS CHARGE CONCENTREE
+*
+*   On impose un deplacement vertical (une fleche) sur 
+*   l'extremite libre d'une console. On etudie 
+*   l'evolution de la force de reaction fonction de la 
+*   fleche.La force doit tendre vers une valeur 
+*   asymptotique donnee par l'expression suivante
+*   (si on considere la loi elastoplastique parfaite):
+*    
+*   FU = (SIGY*H2/4)/L
+*    ou  SIGY = contrainte limite elastique 
+*        H    = l'epaisseur de la poutre
+*        L    = longueur de poutre
+*
+******************************************************* 
+TITRE 'FORCE PONCTUELLE FONCTION DE LA FLECHE  ';                     
+OPTI DIME 3 ELEM TRI3 ECHO 0  DENS 0.5 ;                                        
+*______________________________________________________       
+*  GEOMETRIE                                                                    
+*______________________________________________________       
+B=  1. ;  L=10. ;                                                               
+A1 = 0. 0. 0. ;A2=0. B  0.0;                                        
+B1 =  L   0. 0. ; B2 = L  B 0.0 ; 
+nel = 20;                                         
+A2A1=DROIT 2 A2 A1;A1B1=DROIT nel A1 B1 ;
+B1B2=DROIT 2 B1 B2;B2A2=DROIT nel B2 A2 ;
+ST=DALLER A2A1 A1B1 B1B2 B2A2 PLAN ;
+OEIL = 0 0 1000 ;                                                               
+SI (NEG GRAPH 'N') ;                                                            
+  TRACE OEIL ST  ;                                                              
+FINSI ;                                                                         
+*______________________________________________________       
+*  INITIALISATION                                                               
+*______________________________________________________       
+XABS=PROG ;                                                                   
+FONC1=PROG;                                                                     
+EP=L/10 ;
+*______________________________________________________
+*   MODELE
+*______________________________________________________
+MOD1=MODL ST MECANIQUE ELASTIQUE PLASTIQUE  PARFAIT   
+ DKT  'INTEGRE' 7 ;                                
+*______________________________________________________       
+*  MATERIAUX                                                                    
+*______________________________________________________       
+E=2.1E11 ; SY= 100.E6;                                                                    
+MAT1=MATR MOD1 YOUN E NU 0. SIGY SY  EPAI EP CALF 1. ;                                         
+*______________________________________________________       
+*  CONDITIONS AUX LIMITES ET RIGIDITE                                      
+*______________________________________________________       
+RI1=RIGI MOD1 MAT1 ;                                                            
+CL1=BLOQ UX UY UZ  RY  RZ A2A1 ;                                                
+CLDEP=BLOQ UZ B1B2 ;
+CL = CL1 ET CLDEP; 
+RIT1 = RI1 ET  CL;                                                            
+*______________________________________________________
+*   DEPLACEMENT IMPOSE
+*______________________________________________________
+ FDEP=DEPI CLDEP  0.2;
+*______________________________________________________       
+*  PREPARATION POUR PASAPAS                                                            
+*______________________________________________________       
+*                                                                               
+*                                                                               
+LI1 = PROG 0. 1. ;
+LI2 = PROG 0. 1. ;
+EV = EVOL MANU T LI1 F(T) LI2 ;
+CHA1 = CHAR DIMP FDEP  EV ;
+*
+si complet;
+ LIS1 = PROG PAS 0.03333 0.1 PAS 0.02 0.3 PAS 0.01 0.4;
+sinon;
+ LIS1 = PROG  PAS 0.03333 0.1 0.12 0.14 0.16 ;
+finsi;
+TAB1 = TABLE ;
+TAB1.'MATERIAUX' = MAT1;
+TAB1.'CHARGEMENT' = CHA1;
+TAB1.'MODELE' = MOD1;
+TAB1.'BLOCAGES_MECANIQUES' = CL;
+NBSP1 = DIME LIS1 ;
+TAB1.'TEMPS_INI' = 0. ;
+TAB1.'MESSAGES'=VRAI;
+TAB0 = TABL ;
+TAB0.DEPLACEMENTS = TABL ;
+I1 = 1 ;
+OPTI ECHO 0 ;
+REPE BOUC1 NBSP1 ;
+  TAB1.'TEMPS_FIN' = EXTR LIS1 I1 ;
+  'SAUT' 1 LIGN ;
+  'MESS' 'Numero du pas:' I1 '   Indice d evolution:' (EXTR LIS1 I1) ;
+  TAB2 = INCREPL TAB1 ;
+  TAB1.'TEMPS_INI' = TAB1.'TEMPS_FIN' ;
+  SI (EGA I1 1) ;
+    DEPI1 = TAB2.'DU_FIN' ;
+  SINO ;
+    DEPI1 = DEPI1 + TAB2.'DU_FIN' ;
+  FINS ;
+  TAB1.'U_INI' = DEPI1 ;
+  TAB1.'VARINT_INI' = TAB2.'VARINT_FIN' ;
+  TAB1.'EPSIN_INI' = TAB2.'EPSIN_FIN' ;
+  TAB1.'SIGMA_INI' = TAB2.'SIGMA_FIN' ;
+  TAB0.DEPLACEMENTS.I1 = DEPI1 ;
+  I1 = I1 + 1 ;
+FIN BOUC1 ;
+OPTI ECHO 0 ;
+DEP1 = TAB2.'LX_FIN' ;
+*______________________________________________________
+* CALCUL 
+*______________________________________________________
+*
+*______________________________________________________
+* POST-TRAITEMENT
+*______________________________________________________
+ITER=0 ;
+opti echo 0;                                                                       
+NB=DIME LIS1 ;
+XABS=INSER XABS  1 (0.0) ;                                                    
+FONC1=INSER FONC1 1 (0.0);                                            
+REPETE BOUC1 NB ;
+ITER=ITER+1 ;
+ITER1=ITER+1 ;
+TT=EXTR LIS1 ITER ;
+DEP=TAB0.'DEPLACEMENTS'.ITER ;
+FLECH=EXTR DEP UZ B1; 
+FF=REAC DEP1 RIT1 ;
+FFF=RESUL(REDU FF B1B2)  ;
+FORC=EXTR FFF 'FZ' B1 ;
+XABS=INSER XABS  ITER1 FLECH ;                                                    
+FONC1=INSER FONC1 ITER1 FORC;                                            
+FIN BOUC1 ;                                                                     
+*______________________________________________________
+* ON TRACE LA COURBE FORCE-FLECHE
+*______________________________________________________
+EV1=EVOL ROUGE MANU 'FLECHE' XABS 'FORCE' FONC1 ;
+SI(NEG GRAPH 'N');
+ DESSIN EV1 ;
+FINSI ;
+TEMPS ;                                                                         
+*______________________________________________________
+* CALCUL ANALYTIQUE DE LA VALEUR ASYMPTOTIQUE
+*______________________________________________________
+si complet;
+  VAL1=SY*(EP**2.) ;FU=(VAL1/4)/L ;
+sinon;
+ fu = 1.679E+06;
+finsi;
+*
+*______________________________________________________                     
+*            CODE FONCTIONNEMENT                                                
+*______________________________________________________                     
+*                                                                        
+FC=RESUL(REDU FF B1B2) ;
+FCC=EXTR FC 'FZ' B1 ;
+RESI=ABS((FCC-FU)/FU) ;
+*
+SI (RESI <EG 5E-2);                                                              
+    ERRE  0 ;                                                                   
+SINO;                                                                           
+    ERRE  5 ;                                                                   
+FINSI;                                                                          
+FIN ;                                                                           
+
+
+ 
+
+ 
+

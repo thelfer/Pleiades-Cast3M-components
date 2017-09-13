@@ -1,0 +1,167 @@
+* fichier :  LogarithmicStrainElasticityUniaxialTesting
+*=======================================================================
+*
+* CAS TEST DE VALIDATION DE LA PROCEDURE INCREPL
+* POUR UN ESSAI DE TRACTION UNIAXIALE A VITESSE DE DEFORMATION IMPOSEE
+* SUR UNE LOI DE SAINT-VENANT KIRCHHOFF
+*
+*=======================================================================
+
+opti echo 0 ;
+
+*=======================================================================
+*
+*                       PROCEDURES DEPENDANTES
+*
+*=======================================================================
+
+
+DEBPROC EVO2FICH EV1*EVOLUTION FICOUT*MOT;
+  PROG1=EXTR EV1 ABSC;
+  PROG2=EXTR EV1 ORDO;
+  NB=DIME PROG1;
+  I=0;
+  ii=vale impr;
+  OPTI IMPR 10 IMPR FICOUT;
+  REPETER BOU1 NB;
+    I=I+1;
+    X1=EXTR PROG1 I;
+    Y1=EXTR PROG2 I;
+    MESSAGE X1 Y1 ;
+    FIN BOU1;
+  OPTI IMPR II;
+FINPROC;
+
+*=======================================================================
+*
+*                      JEU DE DONNEES PRINCIPAL
+*
+*=======================================================================
+
+'OPTION' 'ERREUR' 'FATALE' ;
+'OPTION' 'DIME' 2 'ELEM' qua4;
+'OPTION' 'EPSILON' 'UTILISATEUR';
+'OPTION' 'MODELISER' 'AXISYMETRIE';
+
+TMAX = 1.;
+NPAS = 50;
+* NPAS = 1 ;
+UMAX = 7.e-1;
+
+O = 0. 0.;
+A = 1. 0.;
+
+l1 = 'DROIT' 1 O A;
+l2 = l1 'PLUS' (0. 1.);
+
+s1 = l1 'REGLER' 1 l2;
+
+coel2D = 'MOTS' 'YOUN' 'NU' 'RHO' 'ALPH';
+para2D = 'MOTS' 'T';
+
+mod1 = 'MODELISER' s1 'MECANIQUE' 'ELASTIQUE' 'ISOTROPE'
+   'NON_LINEAIRE' 'UTILISATEUR' 'EPSILON' 'UTILISATEUR'
+   'LIB_LOI' './src/libUmatBehaviour.so'
+**   'LIB_LOI' './src/libUmatBehaviour.dll'
+   'FCT_LOI' 'umatlogarithmicstrainelasticity'
+   'C_MATERIAU' coel2D
+   'PARA_LOI'   para2D
+   'CONS' M;
+   
+MAT1 = 'MATERIAU' MOD1 'YOUN' 200e9 'NU' 0.3 'ALPH' 0. 'RHO' 0.;
+
+***
+L_temps = PROG 0. PAS (TMAX/ NPAS)  TMAX;
+
+*** CONDITIONS AUX LIMITES
+************************************************
+* Conditions aux limites éprouvette
+CL1 = 'BLOQUE' 'UZ'  L1 ;
+CL2 = 'BLOQUE' 'UZ'  L2 ;
+CLE1 = CL1 ET CL2;
+
+* Chargement mécanique et thermique
+LI1  = PROG 0. TMAX ;
+LI2  = PROG 0. 1. ;
+EV   = EVOL MANU T LI1 F(T) LI2 ;
+DEP1 = DEPI CL2 UMAX;
+CHA1 = CHAR 'DIMP' DEP1 EV ;
+
+* Champ de température
+TEK = 293.15;
+THE1 = MANU 'CHPO' S1 1 'T' TEK ;
+EV2 = EVOL MANU (prog 0. TMAX) (prog 1. 1.) ;
+CHARTHER = CHAR 'T' THE1 EV2 ;
+                             
+** CALCUL
+* Définition des pas de calcul et de sauvegarde
+************************************************************
+* Définition de la table de la phase de charge
+TABU = 'TABLE';
+TABU . 'TEMPS'        = 'TABL' ;
+TABU . 'DEPLACEMENTS' = 'TABL' ;
+TABU . 'DEFORMATIONS' = 'TABL' ;
+TABU . 'CONTRAINTES'  = 'TABL' ;
+TABU . 'TEMPS'. 0         = 'EXTR' L_temps 1;
+TABU . 'DEPLACEMENTS' . 0 = 'ZERO' mod1 'DEPLACEM' ;
+TABU . 'DEFORMATIONS' . 0 = 'ZERO' mod1 'DEFORMAT' ;
+TABU . 'CONTRAINTES'  . 0 = 'ZERO' mod1 'CONTRAIN' ;
+
+TAB1 = TABLE ;
+TAB1.'INCREPL_VERSION' = 4;
+TAB1.'MESSAGES' = VRAI ;
+TAB1.'BLOCAGES_MECANIQUES' = CLE1 ;
+TAB1.'MODELE' = MOD1 ;
+TAB1.'CHARGEMENT' = CHA1 'ET' CHARTHER ;
+TAB1.'MATERIAUX' = MAT1 ;        
+TAB1.'GRANDS_DEPLACEMENTS' = VRAI;
+TAB1.'KTANGENT' = 'KTAC';
+TAB1.'CRITERE' = 1.e-5;
+
+ntps = 'DIME' L_temps ;
+te  = 'EXTR' L_temps ntps ;
+p   = 0;
+'REPE' B1 (ntps '-' 1);
+   t   = 'EXTR' L_temps &B1;
+   tdt = 'EXTR' L_temps (&B1 '+' 1);
+   dt = tdt '-' t;
+  'MESSAGE' 'time: from ' t ' to ' (t+dt) tdt ;
+  TAB1. 'TEMPS_INI'   = t;
+  'SI' ('>' (t+dt) te);
+    TAB1 . 'TEMPS_FIN' = te ;
+  'SINO' ;
+    TAB1 . 'TEMPS_FIN' = tdt ;
+  'FINSI';
+  STAB1 = INCREPL TAB1 ;
+  bconv = FAUX;
+  'SI' ('EXISTE' stab1 'CONV_MECA');
+    bconv = stab1.'CONV_MECA';
+  'FINSI' ;
+  'SI' ('EXISTE'  stab1 '_ERREUR_');
+       bCONV = bCONV 'ET' ('EGA' (STAB1. '_ERREUR_') 0);
+  'FINSI' ;
+  'SI' bCONV ;
+    p = p '+' 1;
+    TABU . 'TEMPS'        . p       = tdt ;
+    TABU . 'DEPLACEMENTS' . p = STAB1. 'U_FIN' ;
+    TABU . 'DEFORMATIONS' . p = 'EPSI' mod1 (STAB1. 'U_FIN');
+    TABU . 'CONTRAINTES'  . p = STAB1 . 'SIGMA_FIN' ;
+  'SINON';
+    'ERREUR'  'NON CONVERGENCE';  
+  'FINSI' ;
+*                                                                     *
+'FIN' B1 ;
+
+pt = 'PROG';
+ps = 'PROG';
+'REPETER' i ('DIMENSION' (tabu. 'CONTRAINTES' ));
+  t  = tabu. 'TEMPS'. (&i '-' 1);
+  pt = pt 'ET' ('PROG' t);
+  s  = tabu. 'CONTRAINTES'. (&i '-' 1);
+  ps = ps 'ET' ('MAXIMUM' ('EXCO' s 'SMZZ'));
+'FIN'  i;
+
+EVO2FICH ('EVOL' 'MANUEL' pt ps)
+      'LogarithmicStrainElasticityUniaxialTesting-castem-ktac.res';
+
+'FIN';

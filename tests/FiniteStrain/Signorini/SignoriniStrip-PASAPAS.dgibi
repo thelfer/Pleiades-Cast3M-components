@@ -1,0 +1,119 @@
+DEBPROC EVO2FICH EV1*EVOLUTION FICOUT*MOT;
+  PROG1=EXTR EV1 ABSC;
+  PROG2=EXTR EV1 ORDO;
+  NB=DIME PROG1;
+  I=0;
+  ii=vale impr;
+  OPTI IMPR 10 IMPR FICOUT;
+  REPETER BOU1 NB;
+    I=I+1;
+    X1=EXTR PROG1 I;
+    Y1=EXTR PROG2 I;
+    MESSAGE X1 Y1 ;
+    FIN BOU1;
+  OPTI IMPR II;
+FINPROC;
+
+'OPTION' 'DIME' 3;
+'OPTION' 'ELEM' CU20;
+
+lo=5e1;
+la=2e1;
+h =3.5;
+
+O = (0. 0. 0.);
+A = (0. la 0.);
+B = (0. la h);
+C = (0. 0. h);
+
+sb = 'DALLER' 'PLAN'
+     ('DROIT' 10 O A) ('DROIT' 10 A B)
+     ('DROIT' 10 B C) ('DROIT' 10 C O);
+v  = sb 'VOLUME' 'TRANSLATION' 40 (lo 0. 0.);
+sh = 'FACE' 2 v;
+
+C10=2.668;
+C01=0.271;
+C20=0.466;
+K=2939;
+xnu=0.499;
+K=4*(1+xnu)*(C10+C01)/3/(1-(2*xnu));
+xyoun=4*(1+xnu)*(C10+C01);
+
+coel = 'MOTS' 'YOUN' 'NU' 'RHO' 'ALPH' 'K' 'C10' 'C01' 'C20';
+params = 'MOTS' 'T';
+mod1 = 'MODELISER' v 'MECANIQUE' 'ELASTIQUE' 'NON_LINEAIRE'
+'UTILISATEUR' 'EPSILON' 'UTILISATEUR'
+'LIB_LOI' 'src/libUmatBehaviour.so'
+'FCT_LOI' 'umatsignorini'
+'C_MATERIAU' coel 'PARA_LOI' params 'CONS' M;
+
+mat1 = 'MATERIAU' mod1 'YOUN' xyoun 'NU' xnu 'RHO' 0. 'ALPH' 0.
+                  'K' K 'C10' C10 'C01' C01 'C20' C20;
+
+***
+TMAX = 0.75;
+NPAS = 100;
+L_temps = PROG 0. 'PAS' (TMAX '/' NPAS)  TMAX;
+
+*** CONDITIONS AUX LIMITES
+************************************************
+* Conditions aux limites éprouvette
+cl1 = 'BLOQUE' 'UX' 'UY' 'UZ' sb;
+cl2 = 'BLOQUE' 'UX' sh;
+cl3 = 'BLOQUE' 'UY' 'UZ' sh;
+CLE1 = CL1 'ET' CL2 'ET' CL3;
+
+* Chargement mécanique et thermique
+UMAX = 75;
+LI1  = PROG 0. 1.;
+LI2  = PROG 0. 1.;
+EV   = EVOL MANU T LI1 F(T) LI2 ;
+DEP1 = DEPI CL2 UMAX;
+CHA1 = CHAR 'DIMP' DEP1 EV ;
+
+* Champ de température
+TEK = 293.15;
+THE1 = MANU 'CHPO' V 1 'T' TEK ;
+EV2 = EVOL MANU (prog 0. TMAX) (prog 1. 1.) ;
+CHARTHER = CHAR 'T' THE1 EV2 ;
+                             
+** CALCUL
+* Définition des pas de calcul et de sauvegarde
+************************************************************
+* Définition de la table de la phase de charge
+TAB1 = TABLE ;
+TAB1.'MODELE' = MOD1 ;
+TAB1.'CARACTERISTIQUES' = MAT1 ;
+TAB1.'BLOCAGES_MECANIQUES' = CLE1 ;
+TAB1.'CHARGEMENT' = CHA1 'ET' CHARTHER ;
+TAB1.'PRECISION' = 1.E-5 ;
+TAB1.'CONVERGENCE_FORCEE' = FAUX ;
+TAB1.'GRANDS_DEPLACEMENTS' = VRAI ;
+TAB1.'TEMPS_CALCULES' = L_TEMPS;
+TAB1.'TEMPS_SAUVES' = L_TEMPS;
+
+PASAPAS tab1;
+
+n = 'DIMENSION' (tab1. 'CONTRAINTES' );
+u =  tab1. 'DEPLACEMENTS'. (n '-' 1);
+
+def0 = 'DEFORME' v u 0. 'BLAN';
+def1 = 'DEFORME' v u 1. 'ROUG';
+
+'TRACER' (def0 'ET' def1);
+
+pt = 'PROG';
+pu = 'PROG';
+pr = 'PROG';
+'REPETER' i ('DIMENSION' (tab1. 'CONTRAINTES' ) '-' 1);
+  t  = tab1. 'TEMPS'. &i;
+  pt = pt 'ET' ('PROG' t);
+  u  = tab1. 'DEPLACEMENTS'. &i;
+  pu = pu 'ET' ('PROG' ('MAXIMUM' ('REDU' ('EXCO' u 'UX') sh)));
+  pr = pr 'ET' ('MAXIMUM' ('RESULT' ('REAC' cl2 u)));
+'FIN'  i;
+
+EVO2FICH ('EVOL' 'MANUEL' pu pr) 'Signorini-PASAPAS.res';
+
+'FIN';

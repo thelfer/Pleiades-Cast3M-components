@@ -1,0 +1,13 @@
+/* Generating MFront behaviours */
+
+@Command "mfront --interface=castem SaintVenantKirchhoffElasticity.mfront";
+@Command "mfront --obuild";
+
+/* Saint-Venant Kirchhoff elasticity */
+
+@Command "mtest SaintVenantKirchhoffElasticityUniaxialTesting.mtest";
+@Command "castem2014_PLEIADES SaintVenantKirchhoffElasticityUniaxialTesting.dgibi";
+
+@Precision 1.e5;
+@Test {{"SaintVenantKirchhoffElasticityUniaxialTesting.res":8},
+       {"SaintVenantKirchhoffElasticityUniaxialTesting-castem.res":2}};

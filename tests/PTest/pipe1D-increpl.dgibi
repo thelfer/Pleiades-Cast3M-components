@@ -1,0 +1,170 @@
+*======================================================================*
+* TUBE EN PRESSION INTERNE. LES FORCES DE PRESSION NE SONT PAS         *
+* REACTUALISEES AVEC LA GEOMETRIE.                                     *
+* LA LOI UTILISE LE FORMALISME 'LOGARITHMICSTRAIN_1D'                  *
+*======================================================================*
+
+*=======================================================================
+*
+*                       PROCEDURES DEPENDANTES
+*
+*=======================================================================
+
+DEBPROC EVO2FICH EV1*EVOLUTION FICOUT*MOT;
+  PROG1=EXTR EV1 ABSC;
+  PROG2=EXTR EV1 ORDO;
+  NB=DIME PROG1;
+  I=0;
+  ii=vale impr;
+  OPTI IMPR 10 IMPR FICOUT;
+  REPETER BOU1 NB;
+    I=I+1;
+    X1=EXTR PROG1 I;
+    Y1=EXTR PROG2 I;
+    MESSAGE X1 Y1 ;
+    FIN BOU1;
+  OPTI IMPR II;
+FINPROC;
+
+*=======================================================================
+*
+*                      JEU DE DONNEES PRINCIPAL
+*
+*=======================================================================
+
+'OPTION' 'DIME' 1;
+'OPTION' 'ELEM' 'SEG3';
+'OPTION' 'MODELISER' 'UNID' 'AXIS' 'AXGZ';
+'OPTION' 'EPSILON' 'LINEARE';
+
+Ri=4.18e-3;
+Re=Ri+0.57e-3;
+
+nr=20;
+tmax=4.4;
+NPAS=50;
+
+Sint = 'POIN' Ri;
+Sext = 'POIN' Re;
+
+clad = 'DROIT' nr Sint Sext;
+P0   = 'POIN' 0.;
+
+** moddèle
+
+tab = 'TABLE';
+tab.'LIBRAIRIE' = 'src/libUmatBehaviour.so';
+tab.'MODELE'    = 'umatnorton_log1D';
+
+coel   = 'MOTS' 'YOUN' 'NU' 'RHO' 'ALPH' 'A' 'E';
+statev = 'MOTS' 'EEXX' 'EEYY' 'EEZZ' 'P';
+params = 'MOTS' 'T';
+
+MO = 'MODELISER' clad 'MECANIQUE' 'ELASTIQUE' 'ISOTROPE'
+   'NON_LINEAIRE' 'UTILISATEUR' 'EPSILON' 'LINEAIRE'
+   'LIB_LOI' (tab.'LIBRAIRIE')
+   'FCT_LOI' (tab.'MODELE')
+   'C_MATERIAU' coel 'C_VARINTER' statev
+   'PARA_LOI' params 'DPGE' P0 'CONS' M;
+
+MA = 'MATERIAU' MO 'YOUN' 70.e9 'NU' 0.3 'RHO' 0. 'ALPH' 0.
+                   'A' 5.e-10 'E' 1.;
+
+***
+LIT1 = PROG 0. PAS (TMAX/ NPAS)  TMAX;
+
+*** CONDITIONS AUX LIMITES
+************************************************
+
+CLE1 = 'BLOQUE' 'RT' P0;
+
+* Champ de température
+TEK = 293.15;
+THE1 = MANU 'CHPO' clad 1 'T' TEK ;
+EV2 = EVOL MANU (prog 0. TMAX) (prog 1. 1.) ;
+CHARTHER = CHAR 'T' THE1 EV2 ;
+
+** CALCUL
+* Définition des pas de calcul et de sauvegarde
+************************************************************
+* Définition de la table de la phase de charge
+TAB1 = TABLE ;
+TAB1.'MOVA' = 'MOT' 'RIEN' ;
+TAB1.'MODELE' = MO ;
+TAB1.'MATERIAUX' = MA ;        
+TAB1.'BLOCAGES_MECANIQUES' = CLE1 ;
+TAB1.'GRANDS_DEPLACEMENTS' = FAUX;
+TAB1.'PTREF_PLANGENE' = P0;
+TAB1.'INCREPL_VERSION'     = 4;
+
+tabu = 'TABLE';
+tabu.'TEMPS'  = 'TABLE';
+tabu.'CONTRAINTES'  = 'TABLE';
+tabu.'DEPLACEMENTS' = 'TABLE';
+TABU . 'TEMPS' . 0  = 'EXTRAIRE' LIT1 1;
+TABU . 'DEPLACEMENTS' . 0 =
+   ('MANUEL' 'CHPO' clad 1 'UR' 0. 'NATURE' 'DIFFUS') 'ET'
+   ('MANUEL' 'CHPO' p0   1 'UZ' 0. 'NATURE' 'DIFFUS');
+TABU . 'CONTRAINTES'  . 0 = 'ZERO' mo 'CONTRAIN' ;
+* Lancement du calcul de la phase de charge 
+NB1 = ('DIME' LIT1) - 1 ;
+'REPE' B1 NB1 ;
+*  'MESSAGE' 'iteration: ' &B1;
+  I1       = &B1 ;
+  IP1      = I1 + 1 ;
+  TAB1 . 'TEMPS_INI' =  'EXTR' LIT1 I1;
+  TAB1 . 'TEMPS_FIN' =  'EXTR' LIT1 IP1;
+* Chargement mécanique et thermique
+  d = TABU . 'DEPLACEMENTS' . (i1 '-' 1);
+  ur = 'EXTRAIRE' d 'UR' Sint;
+  uz = 'EXTRAIRE' d 'UZ' p0;
+  LI1  = PROG (TAB1 . 'TEMPS_INI') (TAB1 . 'TEMPS_FIN') ;
+  LI2  = PROG 1. 1. ;
+  EV   = EVOL MANU T LI1 F(T) LI2 ;
+  PR   = FORCE  'FR' (2*PI*(1+uz)*(Ri+ur)*3e7) Sint;
+* 'PRES' 'MASS' mo 3e7 ('MANUEL' 'POI1' Sint);
+  CHA1 = CHAR 'MECA' PR EV ;
+  TAB1.'CHARGEMENT' = CHA1 'ET' CHARTHER ;
+  'MESSAGE' 'de '   (TAB1 . 'TEMPS_INI') ' à ' (TAB1 . 'TEMPS_FIN');
+  INCREPL TAB1 ;
+  bconv = FAUX;
+  'SI' ('EXISTE' tab1 'CONV_MECA');
+    bconv = tab1.'CONV_MECA';
+  'FINSI' ;
+  'SI' ('EXISTE'  tab1 '_ERREUR_');
+       bCONV = bCONV 'ET' ('EGA' (TAB1. '_ERREUR_') 0);
+  'FINSI' ;
+  'SI' bCONV ;
+     TABU . 'TEMPS' . I1        = TAB1 . 'TEMPS_FIN' ;
+     TABU . 'DEPLACEMENTS' . I1 = TAB1 . 'U_FIN' ;
+     TABU . 'CONTRAINTES' . I1  = TAB1 . 'SIGMA_FIN' ;
+  'SINON';
+      'ERREUR'  'NON CONVERGENCE';  
+  'FINSI' ;
+'FIN' B1;
+
+n     = ('DIME' tabu.'CONTRAINTES');
+d     = tabu.'DEPLACEMENTS'. (n '-' 1);
+* defo1 = 'DEFORME' clad d 1. 'ROUGE';
+* defo0 = 'DEFORME' clad d 0. 'BLANC';
+* 'TRACER' (defo1 'ET' defo0);
+
+pt   = 'PROG';
+puri = 'PROG';
+pure = 'PROG';
+
+'REPETER' i (('DIME' tabu.'CONTRAINTES') '-'1 );
+   idx = &i ;
+   t = tabu.'TEMPS'. idx;
+   d = tabu.'DEPLACEMENTS'. idx;
+   pt   = pt   'ET' ('PROG' t);
+   puri = puri 'ET' ('PROG' ('EXTRAIRE' d 'UR' Sint));
+   pure = pure 'ET' ('PROG' ('EXTRAIRE' d 'UR' Sext));   
+'FIN' i;
+
+EVO2FICH ('EVOL' 'MANUEL' pt puri)
+      'pipe1D-castem-uri.txt';
+EVO2FICH ('EVOL' 'MANUEL' pt pure)
+      'pipe1D-castem-ure.txt';
+
+'FIN';

@@ -1,0 +1,142 @@
+'OPTION' 'EPSI' 'LINEAIRE' ;
+INCREPL = 'TEXT' MEPL ;
+*---------------------------------------------------------------------*
+*                Cas-test de validation d'INCREPL                     *
+*---------------------------------------------------------------------*
+*                                                                     *
+*    Cas-test d'INCREPL verifie le fonctionnement des sorties de la   *
+* version 1.1.1 :                                                     *
+*    - 'CONV_MECA'      : indicateur de convergence ;                 *
+*    - 'NB_ITER_MECA'   : nb. d'iterations realisees.                 *
+* Il permet egalement de controler le fonctionnement des entrees :    *
+*    - 'NITER_NONCONV'  : nb. d'iterations max en 'NON'-convergence ; *
+*    - 'NORME_MAXDEFOR' : active/desactive normalisation de l'incre-  *
+*                         ment de deformation sur le pas.             *
+* Ce cas-test a ete developpe sur la base du cas-test "t2_CForcee".   *
+*                                                                     *
+*---------------------------------------------------------------------*
+*                                                                     *
+'OPTI' 'ECHO' 0 ;
+*                                                                     *
+'OPTI' 'DIME' 2 'ELEM' QUA4 'MODE' 'PLAN' 'DEFO' ;
+*                                                                     *
+* Si TRACes desires, mettre IG1 a VRAI :                              *
+IG1      = FAUX ;
+*                                                                     *
+* I_NINC1  : test limitation nb. max iterations en non-convergence :  *
+I_NINC1  = FAUX ;
+*                                                                     *
+* ITNORM1 = VRAI : test desactivation normalisation increment de def. *
+ITNORM1  = FAUX ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                              MAILLAGE                               *
+*---------------------------------------------------------------------*
+*                                                                     *
+P0       = 0. 0. ;
+P1       = 10. 0. ;
+NLS1     = 20 ;
+LS1      = P0 'DROI' NLS1 P1 ;
+YP3      = 0.5 ;
+P3       = 0. YP3 ;
+S1       = LS1 'TRAN' 5 P3 ;
+*                                                                     *
+* Traces :                                                            *
+*                                                                     *
+'SI' IG1 ;
+  'TITR' 'Maillage.' ;
+  'TRAC' S1 ;
+'FINS' ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                      MODELES / CARACTERISTIQUES                     *
+*---------------------------------------------------------------------*
+*                                                                     *
+MOD0     = 'MODE' S1 'MECANIQUE' 'ELASTIQUE' 'ISOTROPE' 'PLASTIQUE'
+  'OTTOSEN' ;
+MAT0     = 'MATE' MOD0 'YOUN' 200.E9 'NU' 0.2 ;
+MAT0     = MAT0 'ET' ('TAIL' MOD0) ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                          C.L. / CHARGEMENT                          *
+*---------------------------------------------------------------------*
+*                                                                     *
+* Deplacements imposes :                                              *
+*                                                                     *
+PAPP1    = S1 'POIN' 'PROC' (9. 0.) ;
+PCHA1    = (S1 'COOR' 1) 'POIN' 'EGINFE' 2.5 ;
+PCHA1    = (PCHA1 'COOR' 2) 'POIN' 'EGAL' 0.5 ;
+CLSYM1   = 'BLOQ' P0 'UX' ;
+CLAPP1   = 'BLOQ' PAPP1 'UY' ;
+CLCHA1   = 'BLOQ' PCHA1 'UY' ;
+CL0      = CLSYM1 'ET' CLAPP1 'ET' CLCHA1 ;
+*                                                                     *
+UY0      = -0.02 ;
+DCLCHA1  = 'DEPI' CLCHA1 UY0 ;
+*                                                                     *
+'SI' IG1 ;
+  'TRAC' ('VECT' (DCLCHA1 'NOMC' 'UY') 10. 'UX' 'UY' 'VERT')
+    ((PCHA1 'COUL' 'ROUG') 'ET' ((PAPP1 'MANU' 'POI1') 'COUL' 'BLEU')
+    'ET' S1) 'TITR'
+    'Deplacements imposes a la poutre (vert) et point d"appui (bleu).'
+    ;
+'FINS' ;
+*                                                                     *
+* Chargements :                                                       *
+*                                                                     *
+LTPS2    = 'PROG' 0. PAS 0.25 0.5 ;
+EV2      = 'EVOL' 'MANU' 'TEMPS' LTPS2 LTPS2 ;
+*                                                                     *
+CHARU2   = 'CHAR' 'DIMP' DCLCHA1 EV2 ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                             RESOLUTION                              *
+*---------------------------------------------------------------------*
+*                                                                     *
+*------------------------------ INCREPL ------------------------------*
+*                                                                     *
+TAB2                         = 'TABL' ;
+TAB2 . 'MESSAGES'            = FAUX ;
+TAB2 . 'MODELE'              = MOD0 ;
+TAB2 . 'MATERIAUX'           = MAT0 ;
+TAB2 . 'BLOCAGES_MECANIQUES' = CL0 ;
+TAB2 . 'CHARGEMENT'          = CHARU2 ;
+TAB2 . 'MESSAGES'            = VRAI ;
+'SI' I_NINC1 ;
+  TAB2 . 'NITER_NONCONV'     = 3 ;
+'FINS' ; 
+'SI' ITNORM1 ;
+  TAB2 . 'NORME_MAXDEFOR'    = FAUX ;
+*  TAB2 . 'MAXDEFOR'          = 1.E-5 ;
+'FINS' ;
+*                                                                     *
+NB2      = ('DIME' LTPS2) - 1 ;
+TAB2 . 'TEMPS_INI'           = 'EXTR' LTPS2 1 ;
+FLECH2   = 'PROG' 0. ;
+RES2     = 'PROG' 0. ;
+'REPE' B2 NB2 ;
+  TPSI2    = 'EXTR' LTPS2 (&B2 + 1) ;
+  TAB2 . 'TEMPS_FIN'           = TPSI2 ;
+  TAB2     = INCREPL TAB2 ;
+*                                                                     *
+* Test existence indicateur convergence mecanique :                   *
+  'SI' ('NON' ('EXIS' TAB2 'CONV_MECA')) ;
+    'ERRE' 5 ;
+  'FINS' ;
+*                                                                     *
+* Test existence compteur nb. d'iterations realisees :                *
+  'SI' ('NON' ('EXIS' TAB2 'NB_ITER_MECA')) ;
+    'ERRE' 5 ;
+  'SINO' ;
+    'SI' ('NEG' ('TYPE' TAB2 . 'NB_ITER_MECA') 'ENTIER') ;
+      'ERRE' 5 ;
+    'FINS' ;
+  'FINS' ;
+  'MESS' ' Nb. Iter Meca    =' TAB2 . 'NB_ITER_MECA' ;
+  'SAUT' 1 'LIGN' ;
+'FIN' B2 ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                                                                     *
+'FIN' ;
+'OPTI'  'ECHO' 1 ;

@@ -1,0 +1,179 @@
+DEBPROC EVO2FICH EV1*EVOLUTION FICOUT*MOT;
+  PROG1=EXTR EV1 ABSC;
+  PROG2=EXTR EV1 ORDO;
+  NB=DIME PROG1;
+  I=0;
+  ii=vale impr;
+  OPTI IMPR 10 IMPR FICOUT;
+  REPETER BOU1 NB;
+    I=I+1;
+    X1=EXTR PROG1 I;
+    Y1=EXTR PROG2 I;
+    MESSAGE X1 Y1 ;
+    FIN BOU1;
+  OPTI IMPR II;
+FINPROC;
+
+'OPTION' 'DIME' 2;
+'OPTION' 'MODELISER' 'AXIS';
+'OPTION' 'ELEM' 'QUA8';
+
+R = 5.e-3;
+h = 3.e-2;
+t_deb = 0. ;
+t_fin = 1. ;
+NPAS = 100;
+
+O = (0. 0.);
+A = (R  0. );
+B = (R  h);
+C = (0  h);
+
+lb = 'DROIT' 20  O A;
+l2 = 'DROIT' 50 A B;
+lh = 'DROIT' 20 B C;
+l4 = 'DROIT' 50 C O;
+
+v = 'DALLER' lb l2 lh l4;
+
+*'TRACER' (('COULEUR' lh 'VERT') 'ET' v);
+
+** conditions aux limites
+cl1 = ('BLOQUE' 'UR' lb) 'ET' ('BLOQUE' 'UR' lh);
+cl2 = 'BLOQUE' 'UZ' lb;
+cl3 = 'BLOQUE' 'UZ' lh;
+
+** chargement
+* dep1 = 'DEPIMPOSE' cl3 (-0.55 '*' h);
+dep1 = 'DEPIMPOSE' cl3 -0.015*0.7;
+* dep1 = 'DEPIMPOSE' cl3 -0.003;
+*(-1 * h * 0.75);
+L_tps = 'PROG' t_deb 'PAS' ((t_fin '-' t_deb) '/' NPAS) t_fin ;
+ev = 'EVOL' 'MANU' 'T'     ('PROG' t_deb t_fin)
+                    'F(T)' ('PROG' 0. 1.);
+cha1 = 'CHARGEMENT' 'DIMP' dep1 ev;
+
+* Champ de température
+TEK = 293.15;
+THE1 = MANU 'CHPO' V 1 'T' TEK ;
+EV2 = EVOL MANU (prog t_deb t_fin) (prog 1. 1.) ;
+CHARTHER = CHAR 'T' THE1 EV2 ;
+
+** modèles et matériaux
+
+'OPTION' 'EPSILON' 'UTILISATEUR';
+
+C10=2.668e6;
+C01=0.271e6;
+C20=0.466e6;
+xnu=0.499;
+K=4*(1+xnu)*(C10+C01)/3/(1-(2*xnu));
+xyoun=4*(1+xnu)*(C10+C01);
+
+coel = 'MOTS' 'YOUN' 'NU' 'RHO' 'ALPH' 'K' 'C10' 'C01' 'C20';
+params = 'MOTS' 'T';
+mod1 = 'MODELISER' v 'MECANIQUE' 'ELASTIQUE' 'NON_LINEAIRE'
+'UTILISATEUR' 'EPSILON' 'UTILISATEUR' 'Q8RI'
+'LIB_LOI' 'src/libUmatBehaviour.so'
+'FCT_LOI' 'umatsignorini'
+'C_MATERIAU' coel 'PARA_LOI' params 'CONS' M;
+
+mat1 = 'MATERIAU' mod1 'YOUN' xyoun 'NU' xnu 'RHO' 0. 'ALPH' 0.
+                  'K' K 'C10' C10 'C01' C01 'C20' C20;
+
+** CALCUL
+* Définition des pas de calcul et de sauvegarde
+************************************************************
+* Définition de la table de la phase de charge
+TABU = 'TABLE';
+TABU . 'TEMPS'        = 'TABL' ;
+TABU . 'DEPLACEMENTS' = 'TABL' ;
+TABU . 'DEFORMATIONS' = 'TABL' ;
+TABU . 'CONTRAINTES'  = 'TABL' ;
+TABU . 'TEMPS'. 0         = 'EXTR' L_tps 1;
+TABU . 'DEPLACEMENTS' . 0 = 'ZERO' mod1 'DEPLACEM' ;
+TABU . 'DEFORMATIONS' . 0 = 'ZERO' mod1 'DEFORMAT' ;
+TABU . 'CONTRAINTES'  . 0 = 'ZERO' mod1 'CONTRAIN' ;
+
+TAB1 = TABLE ;
+TAB1.'MESSAGES' = VRAI ;
+TAB1.'BLOCAGES_MECANIQUES' = CL1 'ET' cl2 'ET' cl3 ;
+TAB1.'MODELE' = MOD1 ;
+TAB1.'INCREPL_VERSION' = 4;
+TAB1.'K_TANGENT'       = 'KTAC';
+TAB1.'CHARGEMENT' = CHA1 'ET' CHARTHER ;
+TAB1.'MATERIAUX' = MAT1 ;        
+TAB1.'GRANDS_DEPLACEMENTS' = VRAI;
+TAB1.'CRITERE' = 1.e-4;
+
+ntps = 'DIME' L_tps ;
+te  = 'EXTR' L_tps ntps ;
+p   = 0;
+'REPE' B1 (ntps '-' 1);
+   t   = 'EXTR' L_tps &B1;
+   tdt = 'EXTR' L_tps (&B1 '+' 1);
+   dt = tdt '-' t;
+  'MESSAGE' 'time: from ' t ' to ' (t+dt) tdt ;
+  TAB1. 'TEMPS_INI'   = t;
+  'SI' ('>' (t+dt) te);
+    TAB1 . 'TEMPS_FIN' = te ;
+  'SINO' ;
+    TAB1 . 'TEMPS_FIN' = tdt ;
+  'FINSI';
+  STAB1 = INCREPL TAB1 ;
+  bconv = FAUX;
+  'SI' ('EXISTE' stab1 'CONV_MECA');
+    bconv = stab1.'CONV_MECA';
+  'FINSI' ;
+  'SI' ('EXISTE'  stab1 '_ERREUR_');
+       bCONV = bCONV 'ET' ('EGA' (STAB1. '_ERREUR_') 0);
+  'FINSI' ;
+  'SI' bCONV ;
+    p = p '+' 1;
+    TABU . 'TEMPS'        . p       = tdt ;
+    TABU . 'DEPLACEMENTS' . p = (STAB1. 'U_FIN') et (STAB1. 'LX_FIN') ;
+    TABU . 'DEFORMATIONS' . p = 'EPSI' mod1 (STAB1. 'U_FIN');
+    TABU . 'CONTRAINTES'  . p = STAB1 . 'SIGMA_FIN' ;
+  'SINON';
+    'ERREUR'  'NON CONVERGENCE';  
+  'FINSI' ;
+*                                                                     *
+'FIN' B1 ;
+
+n = ('DIME' tabu. 'DEPLACEMENTS') '-' 1;
+u = tabu. 'DEPLACEMENTS'. n;
+s = tabu. 'CONTRAINTES'. n;
+
+* def0 = 'DEFORME' v u 0. 'BLAN';
+* def1 = 'DEFORME' v u 10. 'ROUG';
+* 'TRACER' (def0 'ET' def1) 'FACE' 'CACHE';
+
+* def0 = 'DEFORME' v u 0. 'BLAN';
+* def1 = 'DEFORME' v u 1. 'ROUG';
+* 'TRACER' (def0 'ET' def1) 'FACE' 'CACHE';
+* 'TRACER' def1 'FACE' 'CACHE';
+
+pu  = 'PROG';
+pf  = 'PROG';
+pf2 = 'PROG';
+pv  = 'PROG';
+
+'REPETER' i n;
+   t = tabu. 'TEMPS'. &i;
+   u = tabu. 'DEPLACEMENTS'. &i;
+   uz = 'MAXIMUM' ('REDU' ('EXCO' 'UZ' u) lh);
+   f  = 'MAXIMUM' ('RESULT' ('REACTION' cl3 u));
+   f2 = 'MAXIMUM' ('RESULT' ('REACTION' cl2 u));
+   'DEPLACER' v 'PLUS' u;
+   vtot = 'INTG' mod1 ('MANUEL' 'CHML' mod1 'SCAL' 1);
+   'DEPLACER' v 'MOINS' u;
+   pu  = pu  'ET' ('PROG' uz);
+   pf  = pf  'ET' ('PROG' f);
+   pf2 = pf2 'ET' ('PROG' f2);
+   pv  = pv  'ET' ('PROG' vtot);
+*   'MESSAGE' uz f f2 vtot (vtot/(3.14159*R*R*h)); 
+'FIN' i
+
+EVO2FICH ('EVOL' 'MANUEL' pu pf)  'SignoriniPad-f.res';
+EVO2FICH ('EVOL' 'MANUEL' pu pf2) 'SignoriniPad-f2.res';
+EVO2FICH ('EVOL' 'MANUEL' pu pv)  'SignoriniPad-v';

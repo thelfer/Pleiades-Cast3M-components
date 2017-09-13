@@ -1,0 +1,205 @@
+*---------------------------------------------------------------------*
+*               Cas test d utilisation de KTAN en 1D                  *
+*---------------------------------------------------------------------*
+'OPTI' 'ECHO' 0 ;
+*
+*******************************************************
+* CHOIX DU COMPORTEMENT :
+* 0  ELASTIQUE                4  CINEMATIQUE
+* 1  PLASTIQUE PARFAIT        5  PLASTIQUE ISOTROPE
+*******************************************************
+MAPL = 5 ;
+*
+'OPTI' 'DIME' 1 ;
+'OPTI' 'MODE' 'UNID' 'PLAN' 'DYDZ' ;
+'OPTI' 'ELEM' 'SEG2' ;
+'OPTION' 'EPSI' 'LINEAIRE' ;
+*
+*------------------------------------------------------
+*                     MAILLAGE
+*------------------------------------------------------
+*
+P0    = 'POIN' 0. ;
+P1    = 'POIN' 1. ;
+L1    = 'DROI' 1 P0 P1 ;
+SU    = L1 ;
+PG1   = 'POIN' 1. ;
+*
+*------------------------------------------------------
+*            CONDITIONS LIMITES CHARGEMENT
+*------------------------------------------------------
+*
+CL1    = 'BLOQ' P0 UX ;
+CL2    = 'BLOQ' P1 UX ;
+CLTOT  = CL1 'ET' CL2 ;
+*
+* Liste des temps :                                                   *
+LIS1     = PROG 0. 0.5 1. ;
+*c
+LI1    = PROG 0. 1. ;
+EV1    = EVOL MANU T LI1 F(T) LI1 ;
+DEP1   = 'DEPI' CL2 2.E-2 ;
+CHA1   = 'CHAR' 'DIMP' DEP1 EV1 ;
+*
+*------------------------------------------------------
+*                      MODELE
+*------------------------------------------------------
+*
+LOGPLAS = VRAI ;
+'SI' (MAPL 'EGA' 0) ;
+  MESS1 = 'TEXT' 'ELASTIQUE' ;
+  MO = MODL SU MECANIQUE ELASTIQUE ;
+  MAT1 = MATR MO YOUN 2.E11  NU 0.3 ;
+  LOGPLAS = FAUX ;
+'FINS' ;
+*
+'SI' (MAPL 'EGA' 1) ;
+  MESS1 = 'TEXT' 'PLASTIQUE_PARFAIT' ;
+  MO = 'MODE' SU MECANIQUE ELASTIQUE PLASTIQUE PARFAIT ;
+  MAT1 = 'MATE' MO YOUN 2.1E11 SIGY 483E6 NU 0.3 ;
+*SIGY=300E4
+'FINS' ;
+*
+'SI' (MAPL 'EGA' 4) ;
+  MESS1 = 'TEXT' 'CINEMATIQUE' ;
+  MO = 'MODE' SU MECANIQUE ELASTIQUE PLASTIQUE CINEMATIQUE ;
+  MAT1 = 'MATE' MO YOUN 2.E11 NU 0.3 SIGY 400.E6 H 60.E3 ;
+'FINS' ;
+*
+'SI' (MAPL 'EGA' 5) ;
+  MESS1 = 'TEXT' 'PLASTIQUE_ISOTROPE' ;
+  E1 = 'PROG' 0. 5.58583E-03 1.24501E-02 1.76824E-02 2.22854E-02 
+  2.65261E-02 3.05237E-02 3.43433E-02 3.80256E-02 4.15975E-02 
+  4.50783E-02 4.84823E-02 5.18202E-02 5.51006E-02 5.83303E-02 
+  6.15150E-02 6.46592E-02 6.77668E-02 7.08411E-02 7.38849E-02 
+  7.69008E-02 7.98908E-02 8.28568E-02 8.58005E-02 8.87234E-02
+  9.16267E-02 9.45117E-02 9.73795E-02 1.00231E-01 1.03067E-01
+  1.05889E-01 1.08696E-01 1.11491E-01 1.14272E-01 1.17042E-01 ;
+E2 = 'PROG' 1.19801E-01 1.22548E-01 1.25285E-01 1.28012E-01 1.30730E-01
+  4.06913E+09 4.12045E+09 4.17113E+09 4.22121E+09 4.27070E+09
+  4.31962E+09 4.36799E+09 4.41584E+09 4.46317E+09 4.51000E+09
+  4.55635E+09 4.60224E+09 ;
+  EPSP2 = E1 'ET' E2 ;
+  Y1    = 'PROG' 0. 4.10000E+08 7.67040E+08 1.00429E+09 1.19535E+09 
+  1.35982E+09 1.50644E+09 1.64000E+09 1.76348E+09 1.87886E+09
+  1.98755E+09 2.09060E+09 2.18880E+09 2.28278E+09 2.37305E+09
+  2.46000E+09 2.54398E+09 2.62528E+09 2.70414E+09 2.78076E+09 
+  2.85532E+09 2.92799E+09 2.99889E+09 3.06816E+09 3.13590E+09
+  3.20220E+09 3.26716E+09 3.33086E+09 3.39335E+09 3.45472E+09
+  3.51502E+09 3.57430E+09 3.63261E+09 3.69000E+09 3.74651E+09 ;
+Y2 = 'PROG' 3.80218E+09 3.85705E+09 3.91115E+09 3.96451E+09 4.01716E+09
+  4.06913E+09 4.12045E+09 4.17113E+09 4.22121E+09 4.27070E+09
+  4.31962E+09 4.36799E+09 4.41584E+09 4.46317E+09 4.51000E+09
+  4.55635E+09 4.60224E+09 ;
+  Y3 = Y1 'ET' Y2 ;
+  trac0 = 'EVOL' 'MANU' 'defo' EPSP2 'sigm' Y3 ;
+  MO   = 'MODE' SU 'MECANIQUE' 'ELASTIQUE' 'ISOTROPE' 
+                               'PLASTIQUE' 'ISOTROPE' ;
+  MAT1 = 'MATE' MO 'YOUN' 7.34E10 'NU' 0.33 'TRAC' trac0 ;
+'FINS' ;
+*
+*---------------------------------------------------------------------*
+*                             RESOLUTION                              *
+*---------------------------------------------------------------------*
+*                                                                     *
+*------------------------------ PASAPAS ------------------------------*
+*
+TAB1                         = TABLE ;
+TAB1 . 'TEMPS_CALCULES'      = LIS1 ;
+TAB1 . 'MODELE'              = MO ;
+TAB1 . 'CARACTERISTIQUES'    = MAT1;
+TAB1 . 'BLOCAGES_MECANIQUES' = CLTOT ;
+TAB1 . 'CHARGEMENT'          = CHA1 ;
+TAB1 . 'K_TANGENT'           = VRAI ;
+TAB1 . 'PRECISINTER'         = 1.D-7 ;
+*
+PASAPAS TAB1;
+*
+*------------------------------ INCREPL ------------------------------*
+*
+TAB2                         = 'TABL' ;
+TAB2 . 'MODELE'              = MO ;
+TAB2 . 'MATERIAUX'           = MAT1 ;
+TAB2 . 'BLOCAGES_MECANIQUES' = CLTOT ;
+TAB2 . 'CHARGEMENT'          = CHA1 ;
+TAB2 . 'MESSAGES'            = VRAI ;
+TAB2 . 'K_TANGENT'           = VRAI ;
+*                                                                     *
+TAB2 . 'TEMPS_INI'           = 'EXTR' LIS1 1 ;
+NB0      = ('DIME' LIS1) - 1 ;
+'REPE' B2 NB0 ;
+  TPSI2    = 'EXTR' LIS1 (&B2 + 1) ;
+  TAB2 . 'TEMPS_FIN'         = TPSI2 ;
+  TAB2     = INCREPL TAB2 ;
+  'SI' (&B2 'EGA' 1) ;
+    DEP2     = TAB2 . 'DU_FIN' ;
+  'SINO' ;
+    DEP2     = DEP2 + (TAB2 . 'DU_FIN') ;
+  'FINS' ;
+  REA2     = TAB2 . 'REACTIONS' ;
+'FIN' B2 ;
+*
+*------------------------------------------------------
+*             COMPARAISON DES RESULTATS
+*------------------------------------------------------
+*
+  'MESS'
+'-------------------- Comparaison PASAPAS-INCREPL -------------------'
+  ;
+  'SAUT' 1 'LIGN' ;
+  'MESS' '  - Comportement choisi : ' MESS1 ;
+  'SAUT' 1 'LIGN' ;
+* deplacements
+  DEP1   = TAB1 . 'DEPLACEMENTS' . NB0 ;
+  DEP1   = 'EXCO' DEP1 'UX' 'UX' ;
+  MA1    = 'MAXI' DEP1 'ABS' ;
+  MAX1   = 'MAXI' (DEP2 - DEP1) 'ABS' ;
+  ECAR1  = MAX1 / MA1 * 100 ;
+  'MESS' '  - ecart relatif sur le deplacement         : ' ECAR1 ;
+* contraintes
+  SIG1   = TAB1 . 'CONTRAINTES' . NB0 ;
+  SIG2   = TAB2 . 'SIGMA_FIN' ;
+  MA1    = 'MAXI' SIG1 'ABS' ;
+  MAX1   = 'MAXI' (SIG2 - SIG1) 'ABS' ;
+  ECAR2  = MAX1 / (MA1 + 1.E-15) * 100 ;
+  'MESS' '  - ecart relatif sur les contraintes        : ' ECAR2 ;
+* reactions
+  REA1   = TAB1 . 'REACTIONS' . NB0 ;
+  MA1    = 'MAXI' REA1 'ABS' ;
+  MAX1   = 'MAXI' (REA2 - REA1) 'ABS' ;
+  ECAR3  = MAX1 / (MA1 + 1.E-15) * 100 ;
+  'MESS' '  - ecart relatif sur les reactions          : ' ECAR3 ;
+* variables internes
+  'SI' (LOGPLAS) ;
+    VAR1   = TAB1 . 'VARIABLES_INTERNES' . NB0 ;
+    VAR2   = TAB2 . 'VARINT_FIN' ;
+    MA1    = 'MAXI' VAR1 'ABS' ;
+    MAX1   = 'MAXI' (VAR2 - VAR1) 'ABS' ;
+    ECAR4  = MAX1 / (MA1 + 1.E-15) * 100 ;
+    'MESS' '  - ecart relatif sur les variables internes : ' ECAR4 ;
+  'SINO' ;
+    ECAR4  = 0. ;
+  'FINS' ;
+*
+'SINO' ;
+  'MESS' 'Comportement choisi :' MESS1 ;
+'FINSI' ;
+*                                                                     *
+ERRMAX1  = 'MAXI' ('PROG' ECAR1 ECAR2 ECAR3 ECAR4) ;
+IERR1    = ERRMAX1 '>' 1.E-10 ;
+'SI' IERR1 ;
+  'SAUT' 1 'LIGN' ;
+  'MESS'
+'########################## Cas-test ECHOUE ##########################'
+  ;
+  'ERRE' 5 ;
+'SINO' ;
+  'SAUT' 1 'LIGN' ;
+  'MESS'
+'-------------------------- Cas-test REUSSI --------------------------'
+  ;
+'FINS' ;
+*
+'FIN' ;
+'OPTI' 'ECHO' 1 ;
+*

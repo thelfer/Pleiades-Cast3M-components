@@ -1,0 +1,218 @@
+DEBPROC EVO2FICH EV1*EVOLUTION FICOUT*MOT;
+PROG1=EXTR EV1 ABSC;
+PROG2=EXTR EV1 ORDO;
+NB=DIME PROG1;
+I=0;
+ii=vale impr;
+OPTI IMPR 10 IMPR FICOUT;
+REPETER BOU1 NB;
+  I=I+1;
+  X1=EXTR PROG1 I;
+  Y1=EXTR PROG2 I;
+  MESSAGE X1 Y1 ;
+  FIN BOU1;
+OPTI IMPR II;
+FINPROC;
+
+'DEBPROC' COPYTAB  tab1*'TABLE' ;
+
+tabco = 'TABLE';
+
+ref = 'INDEX' tab1;
+nref = 'DIME' ref;
+'SI' ('NEG' nref 0);
+  'REPETER' bouc nref;
+    tk = TYPE  ref. &bouc;
+    'SI' ('EGA' tk 'ENTIER');
+      k = ref . &bouc;
+    'SINON';
+      k = 'CHAINE' ref . &bouc; 
+    'FINSI';
+    tk = 'TYPE' tab1. k;
+    'SI' ('EGA' tk 'TABLE');
+      tabco. k = COPYTAB (tab1 . k);
+    'SINON';
+      tabco. k = tab1 . k;
+    'FINSI';
+  'FIN' bouc;
+'FINSI';
+'FINPROC' tabco;
+
+
+'OPTION' 'DIME' 2 'ELEM' qua4;
+* 'OPTION' 'MODELISER' plan defo;
+'OPTION' 'MODELISER' plan gene;
+
+O = (0. 0.);
+A = (1. 0.);
+B = (1. 1.);
+C = (0. 1.);
+
+l1 = 'DROIT' 1 O A;
+l2 = 'DROIT' 1 A B;
+l3 = 'DROIT' 1 B C;
+l4 = 'DROIT' 1 C O;
+
+D = (1. 0.);
+E = (2. 0.);
+F = (2. 1.);
+G = (1. 1.);
+
+l5 = 'DROIT' 1 D E;
+l6 = 'DROIT' 1 E F;
+l7 = 'DROIT' 1 F G;
+l8 = 'DROIT' 1 G D;
+
+c = (('DALLER' l1 l2 l3 l4) 'ET'
+      ('DALLER' l5 l6 l7 l8));
+
+msh_zc = GENJ c 1.e-10 ;
+
+p1 = (0. 0.);
+p2 = (0. 0.);
+
+coel = 'MOTS' 'YOUN' 'NU' 'RHO' 'ALPH';
+params = 'MOTS' 'T';
+
+mdl1 = 'MODELISER' c 'MECANIQUE' 'ELASTIQUE' 'NON_LINEAIRE'
+'UTILISATEUR' 'EPSILON' 'LINEAIRE'
+'LIB_LOI' 'src/libUmatBehaviour.so' 'FCT_LOI'
+'umatelasticity' 'C_MATERIAU' coel 'PARA_LOI' params 'CONS' M
+'DPGE' p1;
+mtx1 = 'MATERIAU' mdl1 'YOUN' 150e9 'NU' 0.3 'RHO' 0. 'ALPH' 0.;
+
+
+
+LCMAT = MOTS 'KN' 'KS' 'RHO' 'ALPN' 'SMAX' 'COD';
+vi = 'MOTS' 'D' ;
+mdl2 = 'MODELISER' msh_zc 'MECANIQUE' 'ELASTIQUE'
+       'NON_LINEAIRE' 'UTILISATEUR'
+       'EPSILON' 'LINEAIRE' JOI2
+       'LIB_LOI' 'src/libUmatBehaviour.so'
+       'FCT_LOI' 'umattvergaard'
+       'C_MATERIAU' LCMAT 'C_VARINTER' vi
+       'DPGE' p2 'CONS' M ;
+
+CN = 1.e16;
+mtx2  = MATE mdl2 'KN' cn 'KS' cn 'RHO' 0. 'ALPN' 0.
+                  'SMAX' 20.e6 'COD' 1.e-3;
+
+mdl = mdl1 et mdl2;
+mtx = mtx1 et mtx2;
+
+* blocages
+
+bl1 = 'BLOQUE' 'UX' l4;
+bl2 = 'BLOQUE' 'UX' l6;
+bl3 = ('BLOQUE' 'UY' l1) 'ET' ('BLOQUE' 'UY' l5);
+
+d = 'DEPIMPOSE' bl2 2.e-3;
+
+t   = 'PROG' 0. 1.;
+u   = 'PROG' 0. 1.;
+chg = 'CHARGEMENT' 'DIMP' d ('EVOL' 'MANUEL' t u);
+
+L_temps = 'PROG' 0. 'PAS' 0.05 1.;
+
+TABU                  = TABLE ;
+TABU . 'TEMPS'        = 'TABL' ;
+TABU . 'DEPLACEMENTS' = 'TABL' ;
+TABU . 'CONTRAINTES'  = 'TABL' ;
+*                                                                     *
+*                                                                     *
+NB1      = 100000000;
+TAB1                         = 'TABL' ;
+TAB1 . 'MODELE'              = mdl ;
+TAB1 . 'MATERIAUX'           = mtx ;
+TAB1 . 'BLOCAGES_MECANIQUES' = bl1 'ET' bl2 'ET' bl3;
+TAB1 . 'CHARGEMENT'      = chg ;
+TAB1 . 'TEMPS_INI'            = 'EXTR' L_temps 1 ;
+TAB1 . 'MESSAGES'            = VRAI ;
+TAB1 . 'K_TANG_COPL'         = 'KTAC';
+TAB1 . 'K_TANGENT'           = 'KTAC';
+TAB1 . 'GRANDS_DEPLACEMENTS' = FAUX;
+TAB1 . 'PTREF_PLANGENE'      = p1 'ET' p2;
+TAB1 . 'INCREPL_VERSION'     = 4;
+TABU . 'TEMPS' . 0             = TAB1 . 'TEMPS_INI' ;
+U0       = 'ZERO' mdl 'DEPLACEM' ;
+U0       = 'CHAN' 'CHPO' mdl U0 ;
+U0       = 'CHAN' 'ATTRIBUT' U0 'NATURE' 'DIFFUS' ;
+TABU . 'DEPLACEMENTS' . 0 = U0 ;
+TABU . 'CONTRAINTES'  . 0  = 'ZERO' mdl 'CONTRAIN' ;
+t   = 'EXTR' L_temps 1;
+te  = 'EXTR' L_temps (DIME L_temps);
+dt  = ('EXTR' L_temps 2) '-' t;
+p = 0;
+'REPE' B1 NB1 ;
+  'MESSAGE' 'TEMPS: ' t ' ' dt;
+  'SI' ( '<' (ABS (te - t) ) (dt/2));
+    'QUITTER' B1;
+  'FINSI';
+  TAB1. 'TEMPS_INI'   = t;
+  'SI' ('>' (t+dt) te);
+    TAB1 . 'TEMPS_FIN' = te ;
+  'SINO' ;
+    TAB1 . 'TEMPS_FIN' = t+dt ;
+  'FINSI';
+  TABS      = COPYTAB TAB1;
+  STAB1    = INCREPL TAB1 ;
+  bconv = FAUX;
+  'SI' ('EXISTE' stab1 'CONV_MECA');
+    bconv = stab1.'CONV_MECA';
+  'FINSI' ;
+  'SI' ('EXISTE'  stab1 '_ERREUR_');
+       bCONV = bCONV 'ET' ('EGA' (STAB1. '_ERREUR_') 0);
+  'FINSI' ;
+  'SI' bCONV ;
+    p = p+1;
+    'SI' ('EXISTE' STAB1 'DU_FIN') ;
+      U      = STAB1 . 'DU_FIN' ;
+    'SINO' ;
+      U      = U + (STAB1 . 'DU_FIN') ;
+    'FINS' ;
+    TAB1 . 'TEMPS_INI'  = TPS ;
+    TAB1 . 'U_INI'      = U ;
+    TAB1 . 'SIGMA_INI'  = STAB1 . 'SIGMA_FIN' ;
+*                                                                     *
+    TABU . 'TEMPS' . p        = t+dt ;
+    TABU . 'DEPLACEMENTS' . p = U ;
+    TABU . 'CONTRAINTES'    . p  = STAB1 . 'SIGMA_FIN' ;
+    t = t+dt;
+    'SI'('>' t te);
+      t = te;
+    'FINSI' ;
+* 'MESSAGE' 'DT_SUIV: ' ('MINIMUN' (STAB1. 'DT_SUIV'));
+* dt = 'MINIMUM' ('PROG' (('MINIMUN' (STAB1. 'DT_SUIV'))*dt) 2.e-3);
+  'SINON';
+      'SI' ('NON' ('EXISTE' STAB1 'DT_SUIV'));
+         'ERREUR'  'NON CONVERGENCE';  
+      'SINON';
+          'SI' ('EGA' ('TYPE' (STAB1.'DT_SUIV')) 'MOT');
+              'ERREUR'  'NON CONVERGENCE';
+          'FINSI';
+         'MESSAGE' 'DT_SUIV: ' ('MINIMUN' (STAB1. 'DT_SUIV'));
+          dt = ('MINIMUN' (STAB1. 'DT_SUIV'))*dt;
+          TAB1 = COPYTAB TABS;
+      'FINSI';
+  'FINSI' ;
+*                                                                     *
+'FIN' B1 ;
+
+
+'MESSAGE' ('DIME' (tabu. 'DEPLACEMENTS'));
+pt = 'PROG';
+pd = 'PROG';
+ps = 'PROG';
+'REPETER' i (('DIME' (tabu. 'DEPLACEMENTS')));
+   t = tabu. 'TEMPS'. (&i '-' 1);
+   s = tabu. 'CONTRAINTES'. (&i '-' 1);
+   d = 'MAXIMUM' ('REDU' (tabu. 'DEPLACEMENTS'. (&i '-' 1)) l6);
+   f = 'MAXIMUM' ('EXCO' s 'SMXX');
+   pt = pt 'ET' ('PROG' t);
+   pd = pd 'ET' ('PROG' d);
+   ps = ps 'ET' ('PROG' f);
+'FIN' i;
+
+EVO2FICH ('EVOL' 'MANUEL' pt ps) 'czm.res';
+
+'FIN';

@@ -1,0 +1,317 @@
+* Serge PASCAL                                       le 28 sept. 2006 *
+*---------------------------------------------------------------------*
+*                Cas test de validation d'INCREPL                     *
+*---------------------------------------------------------------------*
+*    Ce cas-test permet de tester la gestion du contact / frottement  *
+* par INCRPL.  Il simule la mise en contact a deplacement impose d'un *
+* bloc carre sur une surface rigide. Le contact maintenu, ce bloc est *
+* ensuite "tire" parallelement au plan de contact. Le probleme est    *
+* traite en contraintes planes. La validation de la solution fournie  *
+* par INCREPL est assuree par comparaison avec celle de PASAPAS. Cette*
+* comparaison porte a la fois sur les champs de deplacements, de con- *
+* -traintes et les reactions aux noeuds.                              *
+*---------------------------------------------------------------------*
+*                                                                     *
+'OPTI' 'ECHO' 0 ;
+*                                                                     *
+'OPTI' 'DIME' 2 'ELEM' QUA4 'MODE' 'PLAN' 'CONT' ;
+'OPTION' 'EPSI' 'LINEAIRE' ;
+*                                                                     *
+* Si TRACes desires, mettre IG1 a VRAI :                              *
+IG1      = FAUX ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                              MAILLAGE                               *
+*---------------------------------------------------------------------*
+*                                                                     *
+S1       = -10. 0. ;
+S2       = 10. 0. ;
+NLS1     = 16 ;
+LS1      = S1 'DROI' NLS1 S2 ;
+*                                                                     *
+M1       = -5. 1. ;
+M2       = 5. 1. ;
+NLM1     = 16 ;
+LM1      = M1 'DROI' NLM1 M2 ;
+SM1      = LM1 'TRAN' NLM1 (0. 10.) ;
+*                                                                     *
+* Maillages de contact :                                              *
+*                                                                     *
+MCONT1   = ('IMPO' 'MAIL' LM1 ('INVE' LS1)) 'COUL' 'JAUN' ;
+*                                                                     *
+* Traces :                                                            *
+*                                                                     *
+'SI' IG1 ;
+  'TITR' 'Maillages' ;
+  'TRAC' 'FACE' (LS1 'ET' SM1 'ET' MCONT1) ;
+'FINS' ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                      MODELES / CARACTERISTIQUES                     *
+*---------------------------------------------------------------------*
+*                                                                     *
+MODM1    = 'MODE' SM1 'MECANIQUE' 'ELASTIQUE' ;
+MATM1    = 'MATE' MODM1 'YOUN' 1.E3 'NU' 0.3 ;
+*                                                                     *
+MODF1    = 'MODE' MCONT1 'CONTACT' 'FROTTANT' 'COULOMB' ;
+MATF1    = 'MATE' MODF1 'MU' 0.5 ;
+*                                                                     *
+MOD0     = MODM1 'ET' MODF1 ;
+MAT0     = MATM1 'ET' MATF1 ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                          C.L. / CHARGEMENT                          *
+*---------------------------------------------------------------------*
+*                                                                     *
+*-------------------------- Mise en contact --------------------------*
+*                                                                     *
+* Deplacements imposes :                                              *
+*                                                                     *
+LM3      = SM1 'COTE' 3 ;
+LM4      = SM1 'COTE' 4 ;
+CLLM3    = 'BLOQ' LM3 'UY' ;
+CLLM4    = 'BLOQ' LM4 'UX' ;
+CLS1     = 'BLOQ' LS1 'DEPL' ;
+CL0      = CLLM3 'ET' CLLM4 'ET' CLS1 ;
+*                                                                     *
+UY0      = -3. ;
+DCLLM3   = 'DEPI' CLLM3 UY0 ;
+*                                                                     *
+'SI' IG1 ;
+  'TITR' 'Deplacement impose au bord superieur du carre.' ;
+  'TRAC' ('VECT' (DCLLM3 'NOMC' 'UY') 1. 'UX' 'UY' 'VERT')
+  (LS1 'ET' SM1) ;
+'FINS' ;
+*                                                                     *
+* Chargements :                                                       *
+*                                                                     *
+LTPS1    = 'PROG' 0. 1. ;
+EV1      = 'EVOL' 'MANU' 'TEMPS' LTPS1 ('PROG' 0. 1.) ;
+*                                                                     *
+CHARU1   = 'CHAR' 'DIMP' DCLLM3 EV1 ;
+CHAR0    = CHARU1 ;
+*                                                                     *
+*----------------------------- Frottement ----------------------------*
+*                                                                     *
+UX1      = 2. ;
+LM2      = SM1 'COTE' 2 ;
+CLLM2    = 'BLOQ' LM2 'UX' ;
+CL1      = CL0 'ET' CLLM2 ;
+*                                                                     *
+DCLLM2   = 'DEPI' CLLM2 UX1 ;
+*                                                                     *
+'SI' IG1 ;
+  'TITR' 'Deplacement impose sur le cote du carre.' ;
+  'TRAC' ('VECT' (DCLLM2 'NOMC' 'UX') 1. 'UX' 'UY' 'BLEU')
+  (LS1 'ET' SM1) ;
+'FINS' ;
+*                                                                     *
+* Chargements :                                                       *
+*                                                                     *
+LTPS2    = 'PROG' 1. 2. ;
+EV2      = 'EVOL' 'MANU' 'TEMPS' LTPS2 ('PROG' 0. 1.) ;
+EV3      = 'EVOL' 'MANU' 'TEMPS' LTPS2 ('PROG' 1. 1.) ;
+*                                                                     *
+CHARU2   = 'CHAR' 'DIMP' DCLLM2 EV2 ;
+CHARU3   = 'CHAR' 'DIMP' DCLLM3 EV3 ;
+CHAR1    = CHARU2 'ET' CHARU3 ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                           MISE EN CONTACT                           *
+*---------------------------------------------------------------------*
+*                                                                     *
+*------------------------------ INCREPL ------------------------------*
+*                                                                     *
+* Construction de la table INCREPL :                                  *
+*                                                                     *
+TAB1                         = 'TABL' ;
+TAB1 . 'TEMPS_INI'           = 'EXTR' LTPS1 1 ;
+TAB1 . 'TEMPS_FIN'           = 'EXTR' LTPS1 2 ;
+TAB1 . 'MODELE'              = MOD0 ;
+TAB1 . 'MATERIAUX'           = MAT0 ;
+TAB1 . 'BLOCAGES_MECANIQUES' = CL0 ;
+TAB1 . 'CHARGEMENT'          = CHAR0 ;
+**TAB1 . 'CONTACT'             = MFROT1 ;
+TAB1 . 'MESSAGES'            = VRAI ;
+*                                                                     *
+* Resolution :                                                        *
+*                                                                     *
+TAB2     = INCREPL TAB1 ;
+*                                                                     *
+*------------------------------ PASAPAS ------------------------------*
+*                                                                     *
+* Construction de la table PASAPAS :                                  *
+*                                                                     *
+TAB4                            = 'TABL' ;
+TAB4 . 'TEMPS_CALCULES'         = LTPS1 ;
+TAB4 . 'MODELE'                 = MOD0 ;
+TAB4 . 'CARACTERISTIQUES'       = MAT0 ;
+TAB4 . 'BLOCAGES_MECANIQUES'    = CL0 ;
+TAB4 . 'CHARGEMENT'             = CHAR0 ;
+**TAB4 . 'PREDICTEUR'             = 'MOT' 'HPP' ;
+*                                                                     *
+* Resolution :                                                        *
+*                                                                     *
+PASAPAS TAB4 ;
+*                                                                     *
+*--------------------------- Depouillement ---------------------------*
+*                                                                     *
+DEP1     = (TAB2 . 'DU_FIN') ;
+SIG1     = (TAB2 . 'SIGMA_FIN') ;
+REA1     = (TAB2 . 'REACTIONS') ;
+DEP3     = (TAB4 . 'DEPLACEMENTS') . 1 ;
+DEP3     = DEP3 'ENLE' 'LX' ;
+SIG3     = (TAB4 . 'CONTRAINTES') . 1 ;
+REA3     = (TAB4 . 'REACTIONS') . 1 ;
+*                                                                     *
+ERR1     = ('MAXI' ('ABS' (DEP3 - DEP1))) / ('MAXI' ('ABS' DEP3)) ;
+ERR3     = ('MAXI' ('ABS' (SIG3 - SIG1))) / ('MAXI' ('ABS' SIG3)) ;
+ERR5     = ('MAXI' ('ABS' (REA3 - REA1))) / ('MAXI' ('ABS' REA3)) ;
+*                                                                     *
+DEFO0_1  = 'DEFO' (SM1 'ET' LS1) DEP1 0. 'BLEU' ;
+DEFO1_1  = 'DEFO' (SM1 'ET' LS1) DEP1 1. 'ROUG' ;
+DEFO1_2  = 'DEFO' (SM1 'ET' LS1) DEP3 1. 'VERT' ;
+*                                                                     *
+'SI' IG1 ;
+  'TITR'
+'Maillages : initial (bleu), deformes (INCREPL=rouge, PASAPAS=vert).' ;
+  'TRAC' (DEFO0_1 'ET' DEFO1_1 'ET' DEFO1_2) ;
+'FINS' ;
+*                                                                     *
+'SI' IG1 ;
+  'TITR' 'INCREPL : Champ de deplacements a la fin du contact.' ;
+  'TRAC' ('CHAN' 'CHAM' DEP1 MOD0 'NOEUDS') MOD0 ;
+  'TITR' 'PASAPAS : Champ de deplacements a la fin du contact.' ;
+  'TRAC' ('CHAN' 'CHAM' DEP3 MOD0 'NOEUDS') MOD0 ;
+'FINS' ;
+*                                                                     *
+'SI' IG1 ;
+  'TITR' 'INCREPL : Champ de contraintes a la fin du contact.' ;
+  'TRAC' SIG1 MOD0 ;
+  'TITR' 'PASAPAS : Champ de contraintes a la fin du contact.' ;
+  'TRAC' SIG3 MOD0 ;
+'FINS' ;
+*                                                                     *
+'SI' IG1 ;
+  VR1      = 'VECT' REA1 0.8E-2 'FX' 'FY' 'ROUG' ;
+  VR3      = 'VECT' REA3 0.8E-2 'FX' 'FY' 'VERT' ;
+  'TITR'
+'Reactions a la fin du contact (INCREPL=rouge) et (PASAPAS=vert).' ;
+  'TRAC' (VR1 'ET' VR3) (LS1 'ET' SM1) ;
+'FINS' ;
+*                                                                     *
+*---------------------------------------------------------------------*
+*                              FROTTEMENT                             *
+*---------------------------------------------------------------------*
+*                                                                     *
+*------------------------------ INCREPL ------------------------------*
+*                                                                     *
+* Construction de la table INCREPL :                                  *
+*                                                                     *
+TAB2 . 'TEMPS_FIN'           = 'EXTR' LTPS2 2 ;
+TAB2 . 'BLOCAGES_MECANIQUES' = CL1 ;
+TAB2 . 'CHARGEMENT'          = CHAR1 ;
+*                                                                     *
+* Resolution :                                                        *
+*                                                                     *
+TAB3     = INCREPL TAB2 ;
+*                                                                     *
+*------------------------------ PASAPAS ------------------------------*
+*                                                                     *
+* Construction de la table PASAPAS :                                  *
+*                                                                     *
+TAB4 . 'TEMPS_CALCULES'         = 'PROG' 2. ;
+TAB4 . 'BLOCAGES_MECANIQUES'    = CL1 ;
+TAB4 . 'CHARGEMENT'             = CHAR1 ;
+*                                                                     *
+* Resolution :                                                        *
+*                                                                     *
+'FIN' ;
+PASAPAS TAB4 ;
+*                                                                     *
+*--------------------------- Depouillement ---------------------------*
+*                                                                     *
+DEP2     = DEP1 + (TAB3 . 'DU_FIN') ;
+SIG2     = (TAB3 . 'SIGMA_FIN') ;
+REA2     = (TAB3 . 'REACTIONS') ;
+DEP4     = (TAB4 . 'DEPLACEMENTS') . 2 ;
+DEP4     = DEP4 'ENLE' 'LX' ;
+SIG4     = (TAB4 . 'CONTRAINTES') . 2 ;
+REA4     = (TAB4 . 'REACTIONS') . 2 ;
+*                                                                     *
+ERR2     = ('MAXI' ('ABS' (DEP4 - DEP2))) / ('MAXI' ('ABS' DEP4)) ;
+ERR4     = ('MAXI' ('ABS' (SIG4 - SIG2))) / ('MAXI' ('ABS' SIG4)) ;
+ERR6     = ('MAXI' ('ABS' (REA4 - REA2))) / ('MAXI' ('ABS' REA4)) ;
+*                                                                     *
+DEFO2_1  = 'DEFO' (SM1 'ET' LS1) DEP2 1. 'ROUG' ;
+DEFO2_2  = 'DEFO' (SM1 'ET' LS1) DEP4 1. 'VERT' ;
+*                                                                     *
+'SI' IG1 ;
+  'TITR'
+'Maillages : initial (bleu), deformes (INCREPL=rouge, PASAPAS=vert).' ;
+  'TRAC' (DEFO0_1 'ET' DEFO2_1 'ET' DEFO2_2) ;
+'FINS' ;
+*                                                                     *
+'SI' IG1 ;
+  'TITR' 'INCREPL : Champ de deplacements a la fin du frottement.' ;
+  'TRAC' ('CHAN' 'CHAM' DEP2 MOD0 'NOEUDS') MOD0 ;
+  'TITR' 'PASAPAS : Champ de deplacements a la fin du frottement.' ;
+  'TRAC' ('CHAN' 'CHAM' DEP4 MOD0 'NOEUDS') MOD0 ;
+'FINS' ;
+*                                                                     *
+'SI' IG1 ;
+  'TITR' 'INCREPL : Champ de contraintes a la fin du frottement.' ;
+  'TRAC' SIG2 MOD0 ;
+  'TITR' 'PASAPAS : Champ de contraintes a la fin du frottement.' ;
+  'TRAC' SIG4 MOD0 ;
+'FINS' ;
+*                                                                     *
+'SI' IG1 ;
+  VR2      = 'VECT' REA2 0.8E-2 'FX' 'FY' 'ROUG' ;
+  VR4      = 'VECT' REA4 0.8E-2 'FX' 'FY' 'VERT' ;
+  'TITR'
+'Reactions a la fin du frottement (INCREPL=rouge) et (PASAPAS=vert).' ;
+  'TRAC' (VR2 'ET' VR4) (LS1 'ET' SM1) ;
+'FINS' ;
+*                                                                     *
+LERR0    = 'PROG' ERR1 ERR2 ERR3 ERR4 ERR5 ERR6 ;
+ERR0     = 'MAXI' LERR0 ;
+ERRMAX1  = 1.E-3 ;
+*                                                                     *
+'OPTI'  'ECHO' 0 ;
+'SAUT' 1 'LIGN' ;
+'MESS'
+'------------------------ RESULTAT CAS-TEST ------------------------' ;
+'SAUT' 1 'LIGN' ;
+'MESS'
+'Erreur relative entre PASAPAS et INCREPL calculee entre :' ;
+'MESS'
+'les deplacements, les contraintes et les reactions nodales.' ;
+'MESS' 
+'-----------------------------------------------------------' ;
+'MESS' ;
+'MESS' '    MAX. ERREUR =' ERR0 ;
+'SAUT' 1 'LIGN' ;
+'SI' (ERR0 '<EG' ERRMAX1) ;
+  'MESS' '==> Erreur relative inferieure a' ERRMAX1 ':' ;
+  'MESS' '' ;
+  'MESS' '                        __________________' ;
+  'MESS' '                        |                |' ;
+  'MESS' '                        |  TEST REUSSI ! |' ;
+  'MESS' '                        |________________|' ;
+  'SAUT' 1 'LIGN' ;
+'SINO' ;
+  'MESS' '==> Erreur relative superrieure a' ERRMAX1 ':' ;
+  'MESS' '' ;
+  'MESS' '                        __________________' ;
+  'MESS' '                        |                |' ;
+  'MESS' '                        |     ERREUR !   |' ;
+  'MESS' '                        |________________|' ;
+  'SAUT' 1 'LIGN' ;
+  'ERRE' 5 ;
+'FINS' ;
+'MESS'
+'-------------------------- FIN CAS-TEST ---------------------------' ;
+*                                                                     *
+'FIN' ;
+'OPTI'  'ECHO' 1 ;

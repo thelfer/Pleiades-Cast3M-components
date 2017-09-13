@@ -1,0 +1,19 @@
+@Author Thomas Helfer;
+@Date   24/08/2016;
+@Description{
+};
+
+@ModellingHypothesis 'Axisymmetrical';
+@AccelerationAlgorithm 'Cast3M';
+@Behaviour<umat> './src/libUmatBehaviour.so' 'umatlogarithmicstrainplasticity';
+@MaterialProperty<constant> 'YoungModulus' 200.e9;
+@MaterialProperty<constant> 'PoissonRatio'   0.3;
+@MaterialProperty<constant> 's0' 225e6;
+@MaterialProperty<constant> 'Et' 140e9;
+
+@ImposedDrivingVariable 'FZZ' {0:1.,1.:1.7};
+@ImposedDrivingVariable 'FRZ' 0.;
+@ImposedDrivingVariable 'FZR' 0.;
+
+@ExternalStateVariable 'Temperature' 293.15;
+@Times {0.,1 in 50};
